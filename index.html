@@ -2,60 +2,49 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>RTU System Prototype v2.1</title>
+    <title>RTU System Prototype v2.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .blueprint-container {
             position: relative;
-            width: 1000px;
-            height: 600px;
+            width: 1000px; height: 600px;
             background-size: 100% 100%;
             background-repeat: no-repeat;
             margin: 0 auto;
             border: 2px solid #334155;
             background-color: #000;
+            overflow: hidden;
         }
         .lcu-layer {
             position: absolute;
-            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-width: 40px;
-            min-height: 40px;
+            min-width: 50px; min-height: 50px;
+            cursor: grab;
+            user-select: none;
         }
-        /* 편집 모드 스타일 */
-        .edit-mode .lcu-layer {
-            border: 2px dashed #3b82f6;
-            background: rgba(59, 130, 246, 0.2);
-        }
-        /* 크기 조절 핸들 */
+        .lcu-layer:active { cursor: grabbing; }
+        .edit-mode .lcu-layer { border: 2px dashed #3b82f6; background: rgba(59, 130, 246, 0.2); }
+        .lcu-layer.selected { border: 2px solid #fbbf24 !important; background: rgba(251, 191, 36, 0.3) !important; }
+
+        /* 네 모서리 리사이저 */
         .resizer {
-            display: none;
-            width: 15px;
-            height: 15px;
-            background: #3b82f6;
-            position: absolute;
-            right: -5px;
-            bottom: -5px;
-            cursor: nwse-resize;
-            border-radius: 2px;
+            display: none; width: 12px; height: 12px;
+            background: #3b82f6; position: absolute; border-radius: 50%;
         }
         .edit-mode .resizer { display: block; }
-        
+        .resizer.tl { top: -6px; left: -6px; cursor: nw-resize; }
+        .resizer.tr { top: -6px; right: -6px; cursor: ne-resize; }
+        .resizer.bl { bottom: -6px; left: -6px; cursor: sw-resize; }
+        .resizer.br { bottom: -6px; right: -6px; cursor: se-resize; }
+
         .lcu-status-dot {
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            color: white;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
+            width: 34px; height: 34px; border-radius: 50%;
+            color: white; font-weight: bold; display: flex;
+            align-items: center; justify-content: center; font-size: 12px;
             pointer-events: none;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
         .keypad-btn { background: #1e293b; height: 70px; font-size: 24px; border-radius: 12px; border: 1px solid #334155; }
         .keypad-btn:active { background: #3b82f6; }
@@ -64,11 +53,11 @@
 <body class="bg-slate-950 text-white overflow-hidden font-sans">
 
     <div id="page-user" class="min-h-screen flex flex-col">
-        <header class="p-4 flex justify-between items-center bg-slate-900 border-b border-slate-800">
-            <h1 class="text-xl font-black text-blue-500 tracking-tighter">RTU CONTROL CENTER</h1>
+        <header class="p-4 flex justify-between items-center bg-slate-900 border-b border-slate-800 shadow-lg">
+            <h1 id="header-title" class="text-xl font-black text-blue-500 tracking-tighter">RTU MONITORING</h1>
             <div class="flex items-center gap-6">
                 <div id="top-clock" class="font-mono text-lg text-slate-400">00:00:00</div>
-                <button onclick="showLogin()" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700">
+                <button id="btn-login-trigger" onclick="showLogin()" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" />
                     </svg>
@@ -77,30 +66,30 @@
         </header>
 
         <main class="flex-1 flex flex-col justify-center items-center relative p-4">
-            <div id="blueprint" class="blueprint-container shadow-2xl"></div>
+            <div id="blueprint" class="blueprint-container"></div>
+            
             <button id="btn-prev" class="absolute left-10 p-6 bg-slate-800/90 rounded-full border border-slate-700" onclick="changePage(-1)">←</button>
             <button id="btn-next" class="absolute right-10 p-6 bg-slate-800/90 rounded-full border border-slate-700" onclick="changePage(1)">→</button>
-            <button id="btn-edit-exit" class="hidden absolute bottom-10 px-10 py-4 bg-blue-600 rounded-full font-bold shadow-xl" onclick="exitEditMode()">편집 완료 및 저장</button>
+            
+            <div id="edit-controls" class="hidden absolute bottom-6 flex gap-3 items-center bg-slate-900/90 p-4 rounded-2xl border border-slate-700 shadow-2xl">
+                <button onclick="addLayer()" class="px-6 py-3 bg-emerald-600 rounded-xl font-bold hover:bg-emerald-500">+ 그룹 추가</button>
+                <button id="btn-delete" onclick="deleteSelectedLayer()" disabled class="px-6 py-3 bg-red-600 rounded-xl font-bold disabled:opacity-30 disabled:cursor-not-allowed">그룹 삭제</button>
+                <div class="w-px h-10 bg-slate-700 mx-2"></div>
+                <button onclick="confirmCancelEdit()" class="px-6 py-3 bg-slate-700 rounded-xl font-bold">취소</button>
+                <button onclick="saveAndExitEdit()" class="px-8 py-3 bg-blue-600 rounded-xl font-bold shadow-lg shadow-blue-900/20">편집 완료</button>
+            </div>
         </main>
     </div>
 
-    <div id="page-login" class="hidden min-h-screen flex items-center justify-center bg-slate-950/95 backdrop-blur-sm">
-        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[420px] text-center">
+    <div id="page-login" class="hidden min-h-screen flex items-center justify-center bg-slate-950/98 backdrop-blur-md">
+        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[420px] text-center shadow-2xl">
             <h2 class="text-2xl font-bold mb-8 text-blue-400">ENTER PIN</h2>
             <div class="bg-black/50 p-6 mb-8 rounded-2xl text-4xl tracking-[0.8em] h-20 flex items-center justify-center border border-slate-800" id="pin-display"></div>
             <div class="grid grid-cols-3 gap-3">
-                <button onclick="pressKey('1')" class="keypad-btn">1</button>
-                <button onclick="pressKey('2')" class="keypad-btn">2</button>
-                <button onclick="pressKey('3')" class="keypad-btn">3</button>
-                <button onclick="pressKey('4')" class="keypad-btn">4</button>
-                <button onclick="pressKey('5')" class="keypad-btn">5</button>
-                <button onclick="pressKey('6')" class="keypad-btn">6</button>
-                <button onclick="pressKey('7')" class="keypad-btn">7</button>
-                <button onclick="pressKey('8')" class="keypad-btn">8</button>
-                <button onclick="pressKey('9')" class="keypad-btn">9</button>
-                <button onclick="clearPin()" class="keypad-btn text-red-500">Clear</button>
+                <script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="keypad-btn">${i}</button>`);</script>
+                <button onclick="clearPin()" class="keypad-btn text-red-500">C</button>
                 <button onclick="pressKey('0')" class="keypad-btn">0</button>
-                <button onclick="hideLogin()" class="keypad-btn text-slate-500">Back</button>
+                <button onclick="hideLogin()" class="keypad-btn text-slate-500 text-lg">Back</button>
             </div>
         </div>
     </div>
@@ -112,7 +101,7 @@
                 <button id="tab-individual" onclick="switchAdminTab('individual')" class="px-8 py-2 rounded-lg text-slate-400">개인별 정보</button>
             </div>
             <div class="flex gap-4">
-                <button onclick="enterGroupEdit()" class="px-6 py-2 bg-amber-600 rounded-lg font-bold">그룹 관리(편집)</button>
+                <button onclick="enterGroupEdit()" class="px-6 py-2 bg-amber-600 rounded-lg font-bold hover:bg-amber-500">그룹 관리(편집)</button>
                 <button onclick="location.reload()" class="px-6 py-2 bg-slate-800 rounded-lg">로그아웃</button>
             </div>
         </nav>
@@ -125,9 +114,9 @@
     </div>
 
     <div id="modal-detail" class="hidden fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-10">
-        <div class="bg-slate-900 w-full max-w-5xl p-10 rounded-3xl border border-slate-800 relative">
+        <div class="bg-slate-900 w-full max-w-5xl p-10 rounded-3xl border border-slate-800 relative shadow-2xl">
             <button onclick="closeDetail()" class="absolute top-6 right-6 text-3xl">✕</button>
-            <h3 id="detail-title" class="text-2xl font-bold mb-8 text-blue-400">DATA ANALYSIS</h3>
+            <h3 id="detail-title" class="text-2xl font-bold mb-8 text-blue-400">REALTIME ANALYSIS</h3>
             <div class="h-[400px]"><canvas id="detailChart"></canvas></div>
         </div>
     </div>
@@ -137,12 +126,12 @@
         let pin = "";
         let isEditMode = false;
         let currentTab = 'group';
+        let selectedLayer = null;
 
-        // 1. 페이지 및 이미지(.jpg) 제어
+        // 1. 도면 및 레이어 로드
         function updatePage() {
             const container = document.getElementById('blueprint');
             const suffix = curPage === 1 ? '' : curPage;
-            // 확장자 명을 .jpg로 수정
             container.style.backgroundImage = `url('rtu_ui${suffix}.jpg')`;
             
             document.getElementById('btn-prev').style.visibility = curPage === 1 ? 'hidden' : 'visible';
@@ -154,66 +143,137 @@
         function renderLayers() {
             const container = document.getElementById('blueprint');
             container.innerHTML = '';
-            for(let i=1; i<=10; i++) {
-                const rect = document.createElement('div');
-                rect.className = 'lcu-layer';
-                rect.style.width = '100px'; rect.style.height = '80px';
-                rect.style.top = (20 + (i % 3) * 20) + '%';
-                rect.style.left = (5 + (i * 8)) + '%';
-                
-                const dot = document.createElement('div');
-                dot.id = `lcu-dot-${i}`;
-                dot.className = `lcu-status-dot ${i % 3 === 0 ? 'bg-red-500' : 'bg-green-500'}`;
-                dot.innerText = i.toString().padStart(2, '0');
-                
+            for(let i=1; i<=6; i++) createLayerElement(i * 10, i * 8, 100, 80, i);
+        }
+
+        function createLayerElement(top, left, width, height, label) {
+            const container = document.getElementById('blueprint');
+            const rect = document.createElement('div');
+            rect.className = `lcu-layer ${isEditMode ? 'edit-mode' : ''}`;
+            rect.style.top = top + '%'; rect.style.left = left + '%';
+            rect.style.width = width + 'px'; rect.style.height = height + 'px';
+
+            const dot = document.createElement('div');
+            dot.className = `lcu-status-dot bg-green-500`;
+            dot.innerText = label.toString().padStart(2, '0');
+            rect.appendChild(dot);
+
+            // 4방향 리사이저 추가
+            ['tl', 'tr', 'bl', 'br'].forEach(pos => {
                 const resizer = document.createElement('div');
-                resizer.className = 'resizer';
-                
-                rect.appendChild(dot);
+                resizer.className = `resizer ${pos}`;
+                resizer.addEventListener('mousedown', (e) => initResize(e, pos));
                 rect.appendChild(resizer);
-                
-                // 켜기 기능만 존재
-                rect.onclick = (e) => {
-                    if(!isEditMode && dot.classList.contains('bg-red-500')) {
-                        dot.classList.replace('bg-red-500', 'bg-green-500');
-                    }
-                };
+            });
 
-                // 크기 조절 로직 추가
-                resizer.addEventListener('mousedown', initResize, false);
-                
-                container.appendChild(rect);
-            }
+            // 드래그 앤 드롭 및 선택 이벤트
+            rect.addEventListener('mousedown', (e) => initDrag(e));
+            
+            rect.onclick = (e) => {
+                if(!isEditMode) {
+                    if(dot.classList.contains('bg-red-500')) dot.classList.replace('bg-red-500', 'bg-green-500');
+                    return;
+                }
+                e.stopPropagation();
+                if(selectedLayer) selectedLayer.classList.remove('selected');
+                selectedLayer = rect;
+                selectedLayer.classList.add('selected');
+                document.getElementById('btn-delete').disabled = false;
+            };
+
+            container.appendChild(rect);
         }
 
-        // 2. 크기 조절 (Resizing) 핸들러
-        function initResize(e) {
+        // 2. 편집 기능 (드래그 & 4방향 리사이즈)
+        function initDrag(e) {
+            if(!isEditMode || e.target.classList.contains('resizer')) return;
+            const rect = e.currentTarget;
+            let startX = e.clientX, startY = e.clientY;
+
+            function doDrag(e) {
+                const dx = e.clientX - startX, dy = e.clientY - startY;
+                rect.style.left = (rect.offsetLeft + dx) + 'px';
+                rect.style.top = (rect.offsetTop + dy) + 'px';
+                startX = e.clientX; startY = e.clientY;
+            }
+            function stopDrag() { window.removeEventListener('mousemove', doDrag); window.removeEventListener('mouseup', stopDrag); }
+            window.addEventListener('mousemove', doDrag);
+            window.addEventListener('mouseup', stopDrag);
+        }
+
+        function initResize(e, pos) {
             e.stopPropagation();
-            const element = e.target.parentElement;
-            window.addEventListener('mousemove', Resize, false);
-            window.addEventListener('mouseup', stopResize, false);
+            const rect = e.target.parentElement;
+            let startX = e.clientX, startY = e.clientY;
+            let startW = rect.offsetWidth, startH = rect.offsetHeight;
+            let startL = rect.offsetLeft, startT = rect.offsetTop;
 
-            function Resize(e) {
-                const containerRect = document.getElementById('blueprint').getBoundingClientRect();
-                element.style.width = (e.clientX - element.getBoundingClientRect().left) + 'px';
-                element.style.height = (e.clientY - element.getBoundingClientRect().top) + 'px';
+            function doResize(e) {
+                const dx = e.clientX - startX, dy = e.clientY - startY;
+                if(pos.includes('r')) rect.style.width = (startW + dx) + 'px';
+                if(pos.includes('b')) rect.style.height = (startH + dy) + 'px';
+                if(pos.includes('l')) { rect.style.width = (startW - dx) + 'px'; rect.style.left = (startL + dx) + 'px'; }
+                if(pos.includes('t')) { rect.style.height = (startH - dy) + 'px'; rect.style.top = (startT + dy) + 'px'; }
             }
-            function stopResize() {
-                window.removeEventListener('mousemove', Resize, false);
-                window.removeEventListener('mouseup', stopResize, false);
+            function stopResize() { window.removeEventListener('mousemove', doResize); window.removeEventListener('mouseup', stopResize); }
+            window.addEventListener('mousemove', doResize);
+            window.addEventListener('mouseup', stopResize);
+        }
+
+        function addLayer() { createLayerElement(40, 40, 100, 80, document.querySelectorAll('.lcu-layer').length + 1); }
+        function deleteSelectedLayer() {
+            if(selectedLayer) {
+                selectedLayer.remove();
+                selectedLayer = null;
+                document.getElementById('btn-delete').disabled = true;
             }
         }
 
-        function changePage(dir) { curPage += dir; updatePage(); }
+        // 3. 페이지 전환 및 로그인 로직
+        function enterGroupEdit() {
+            isEditMode = true;
+            document.getElementById('page-admin-main').classList.add('hidden');
+            document.getElementById('page-user').classList.remove('hidden');
+            document.getElementById('header-title').innerText = "EDIT MODE (GROUPING)";
+            document.getElementById('btn-login-trigger').classList.add('hidden');
+            document.getElementById('edit-controls').classList.remove('hidden');
+            updatePage();
+        }
 
-        // 3. 관리자 기능
-        function showLogin() { document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-login').classList.remove('hidden'); }
-        function hideLogin() { document.getElementById('page-login').classList.add('hidden'); document.getElementById('page-user').classList.remove('hidden'); clearPin(); }
+        function saveAndExitEdit() {
+            document.getElementById('page-user').classList.add('hidden');
+            document.getElementById('page-admin-main').classList.remove('hidden');
+            finishEditUI();
+        }
+
+        function confirmCancelEdit() {
+            if(confirm("저장하지 않고 편집을 중단하시겠습니까?")) {
+                document.getElementById('page-user').classList.add('hidden');
+                document.getElementById('page-admin-main').classList.remove('hidden');
+                finishEditUI();
+            }
+        }
+
+        function finishEditUI() {
+            isEditMode = false;
+            document.getElementById('header-title').innerText = "RTU MONITORING";
+            document.getElementById('btn-login-trigger').classList.remove('hidden');
+            document.getElementById('edit-controls').classList.add('hidden');
+            renderLayers(); 
+        }
+
+        // PIN 보안 강화: 항상 초기화
+        function showLogin() {
+            clearPin();
+            document.getElementById('page-user').classList.add('hidden');
+            document.getElementById('page-login').classList.remove('hidden');
+        }
+        function hideLogin() { document.getElementById('page-login').classList.add('hidden'); document.getElementById('page-user').classList.remove('hidden'); }
         function pressKey(num) {
             if(pin.length < 4) { pin += num; document.getElementById('pin-display').innerText = '●'.repeat(pin.length); }
             if(pin.length === 4) {
                 if(pin === "0000") enterAdmin();
-                else { alert("PIN 틀림"); clearPin(); }
+                else { alert("잘못된 PIN입니다."); clearPin(); }
             }
         }
         function clearPin() { pin = ""; document.getElementById('pin-display').innerText = ""; }
@@ -244,49 +304,23 @@
             }
         }
 
-        // 4. 편집 모드 제어
-        function enterGroupEdit() {
-            isEditMode = true;
-            document.getElementById('page-admin-main').classList.add('hidden');
-            document.getElementById('page-user').classList.remove('hidden');
-            document.getElementById('blueprint').classList.add('edit-mode');
-            document.getElementById('btn-edit-exit').classList.remove('hidden');
-            alert("편집 모드: 박스의 모서리를 드래그하여 크기를 조절하세요.");
-        }
-
-        function exitEditMode() {
-            isEditMode = false;
-            document.getElementById('blueprint').classList.remove('edit-mode');
-            document.getElementById('btn-edit-exit').classList.add('hidden');
-            alert("설정이 저장되었습니다.");
-        }
-
-        // 5. 24시간 역순 그래프
-        let myChart;
+        function changePage(dir) { curPage += dir; updatePage(); }
+        setInterval(() => { document.getElementById('top-clock').innerText = new Date().toLocaleTimeString(); }, 1000);
+        window.onload = updatePage;
+        function closeDetail() { document.getElementById('modal-detail').classList.add('hidden'); }
         function showGraph(title) {
             document.getElementById('modal-detail').classList.remove('hidden');
-            document.getElementById('detail-title').innerText = title + " 24시간 분석";
             const ctx = document.getElementById('detailChart').getContext('2d');
-            const now = new Date().getHours();
-            const labels = Array.from({length: 24}, (_, i) => ((now - (23-i) + 24) % 24) + "시");
-            if(myChart) myChart.destroy();
-            myChart = new Chart(ctx, {
+            if(window.myChart) window.myChart.destroy();
+            window.myChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
-                    datasets: [
-                        { label: '절감량', data: labels.map(()=>Math.random()*15), borderColor: '#3b82f6' },
-                        { label: '전력량', data: labels.map(()=>Math.random()*80), borderColor: '#10b981' },
-                        { label: '순시전력', data: labels.map(()=>Math.random()*2), borderColor: '#f59e0b' }
-                    ]
+                    labels: Array.from({length: 24}, (_, i) => i+"시"),
+                    datasets: [{ label: '순시전력', data: Array.from({length:24}, ()=>Math.random()), borderColor: '#3b82f6' }]
                 },
                 options: { maintainAspectRatio: false, color: '#94a3b8' }
             });
         }
-        function closeDetail() { document.getElementById('modal-detail').classList.add('hidden'); }
-
-        setInterval(() => { document.getElementById('top-clock').innerText = new Date().toLocaleTimeString(); }, 1000);
-        window.onload = updatePage;
     </script>
 </body>
 </html>
