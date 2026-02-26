@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>RTU System Prototype v2</title>
+    <title>RTU System Prototype v2.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -16,19 +16,34 @@
             border: 2px solid #334155;
             background-color: #000;
         }
-        /* 평소엔 투명, 편집모드일 때만 테두리 노출 */
         .lcu-layer {
             position: absolute;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: border 0.2s;
+            min-width: 40px;
+            min-height: 40px;
         }
+        /* 편집 모드 스타일 */
         .edit-mode .lcu-layer {
-            border: 2px solid #3b82f6;
+            border: 2px dashed #3b82f6;
             background: rgba(59, 130, 246, 0.2);
         }
+        /* 크기 조절 핸들 */
+        .resizer {
+            display: none;
+            width: 15px;
+            height: 15px;
+            background: #3b82f6;
+            position: absolute;
+            right: -5px;
+            bottom: -5px;
+            cursor: nwse-resize;
+            border-radius: 2px;
+        }
+        .edit-mode .resizer { display: block; }
+        
         .lcu-status-dot {
             width: 34px;
             height: 34px;
@@ -42,13 +57,7 @@
             pointer-events: none;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
-        .keypad-btn {
-            background: #1e293b;
-            height: 70px;
-            font-size: 24px;
-            border-radius: 12px;
-            border: 1px solid #334155;
-        }
+        .keypad-btn { background: #1e293b; height: 70px; font-size: 24px; border-radius: 12px; border: 1px solid #334155; }
         .keypad-btn:active { background: #3b82f6; }
     </style>
 </head>
@@ -58,34 +67,40 @@
         <header class="p-4 flex justify-between items-center bg-slate-900 border-b border-slate-800">
             <h1 class="text-xl font-black text-blue-500 tracking-tighter">RTU CONTROL CENTER</h1>
             <div class="flex items-center gap-6">
-                <div id="top-clock" class="font-mono text-lg text-slate-400">18:35:20</div>
+                <div id="top-clock" class="font-mono text-lg text-slate-400">00:00:00</div>
                 <button onclick="showLogin()" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" />
+                    </svg>
                 </button>
             </div>
         </header>
 
         <main class="flex-1 flex flex-col justify-center items-center relative p-4">
-            <div id="blueprint" class="blueprint-container shadow-[0_0_50px_rgba(0,0,0,0.8)]">
-                </div>
-
-            <button id="btn-prev" class="absolute left-10 p-6 bg-slate-800/90 rounded-full border border-slate-700 hover:bg-blue-600" onclick="changePage(-1)">←</button>
-            <button id="btn-next" class="absolute right-10 p-6 bg-slate-800/90 rounded-full border border-slate-700 hover:bg-blue-600" onclick="changePage(1)">→</button>
+            <div id="blueprint" class="blueprint-container shadow-2xl"></div>
+            <button id="btn-prev" class="absolute left-10 p-6 bg-slate-800/90 rounded-full border border-slate-700" onclick="changePage(-1)">←</button>
+            <button id="btn-next" class="absolute right-10 p-6 bg-slate-800/90 rounded-full border border-slate-700" onclick="changePage(1)">→</button>
+            <button id="btn-edit-exit" class="hidden absolute bottom-10 px-10 py-4 bg-blue-600 rounded-full font-bold shadow-xl" onclick="exitEditMode()">편집 완료 및 저장</button>
         </main>
     </div>
 
     <div id="page-login" class="hidden min-h-screen flex items-center justify-center bg-slate-950/95 backdrop-blur-sm">
-        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[420px] shadow-2xl text-center">
+        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[420px] text-center">
             <h2 class="text-2xl font-bold mb-8 text-blue-400">ENTER PIN</h2>
             <div class="bg-black/50 p-6 mb-8 rounded-2xl text-4xl tracking-[0.8em] h-20 flex items-center justify-center border border-slate-800" id="pin-display"></div>
-            
             <div class="grid grid-cols-3 gap-3">
-                <script>
-                    for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="keypad-btn">${i}</button>`);
-                </script>
-                <button onclick="clearPin()" class="keypad-btn text-red-500 text-lg">Clear</button>
+                <button onclick="pressKey('1')" class="keypad-btn">1</button>
+                <button onclick="pressKey('2')" class="keypad-btn">2</button>
+                <button onclick="pressKey('3')" class="keypad-btn">3</button>
+                <button onclick="pressKey('4')" class="keypad-btn">4</button>
+                <button onclick="pressKey('5')" class="keypad-btn">5</button>
+                <button onclick="pressKey('6')" class="keypad-btn">6</button>
+                <button onclick="pressKey('7')" class="keypad-btn">7</button>
+                <button onclick="pressKey('8')" class="keypad-btn">8</button>
+                <button onclick="pressKey('9')" class="keypad-btn">9</button>
+                <button onclick="clearPin()" class="keypad-btn text-red-500">Clear</button>
                 <button onclick="pressKey('0')" class="keypad-btn">0</button>
-                <button onclick="hideLogin()" class="keypad-btn text-slate-500 text-lg">Back</button>
+                <button onclick="hideLogin()" class="keypad-btn text-slate-500">Back</button>
             </div>
         </div>
     </div>
@@ -93,38 +108,27 @@
     <div id="page-admin-main" class="hidden min-h-screen bg-slate-950 flex flex-col">
         <nav class="p-6 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
             <div class="flex gap-2 p-1 bg-slate-800 rounded-xl">
-                <button id="tab-group" onclick="switchAdminTab('group')" class="px-8 py-2 bg-blue-600 rounded-lg font-bold transition">그룹별 정보</button>
-                <button id="tab-individual" onclick="switchAdminTab('individual')" class="px-8 py-2 rounded-lg text-slate-400 hover:bg-slate-700 transition">개인별 정보</button>
+                <button id="tab-group" onclick="switchAdminTab('group')" class="px-8 py-2 bg-blue-600 rounded-lg font-bold">그룹별 정보</button>
+                <button id="tab-individual" onclick="switchAdminTab('individual')" class="px-8 py-2 rounded-lg text-slate-400">개인별 정보</button>
             </div>
             <div class="flex gap-4">
-                <button onclick="toggleGroupEdit()" id="btn-group-edit" class="px-6 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg font-bold">그룹 관리(편집)</button>
+                <button onclick="enterGroupEdit()" class="px-6 py-2 bg-amber-600 rounded-lg font-bold">그룹 관리(편집)</button>
                 <button onclick="location.reload()" class="px-6 py-2 bg-slate-800 rounded-lg">로그아웃</button>
             </div>
         </nav>
-        
         <div class="p-8 flex-1 overflow-auto">
-            <table class="w-full border-separate border-spacing-y-2 max-w-6xl mx-auto">
-                <thead>
-                    <tr class="text-slate-500 uppercase text-sm tracking-widest">
-                        <th class="p-4 text-left">장비/그룹명</th>
-                        <th class="p-4">대기전력 절감량</th>
-                        <th class="p-4">누적 전력량</th>
-                        <th class="p-4">실시간 순시전력</th>
-                    </tr>
-                </thead>
-                <tbody id="admin-table-body">
-                    </tbody>
+            <table class="w-full border-separate border-spacing-y-2 max-w-6xl mx-auto text-center">
+                <thead><tr class="text-slate-500 text-sm"><th>장비/그룹명</th><th>대기전력 절감량</th><th>누적 전력량</th><th>실시간 순시전력</th></tr></thead>
+                <tbody id="admin-table-body"></tbody>
             </table>
         </div>
     </div>
 
     <div id="modal-detail" class="hidden fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-10">
-        <div class="bg-slate-900 w-full max-w-5xl p-10 rounded-3xl border border-slate-800 relative shadow-2xl">
-            <button onclick="closeDetail()" class="absolute top-6 right-6 text-3xl text-slate-500 hover:text-white">✕</button>
-            <h3 id="detail-title" class="text-2xl font-bold mb-8 text-blue-400 italic">DATA ANALYSIS</h3>
-            <div class="h-[400px]">
-                <canvas id="detailChart"></canvas>
-            </div>
+        <div class="bg-slate-900 w-full max-w-5xl p-10 rounded-3xl border border-slate-800 relative">
+            <button onclick="closeDetail()" class="absolute top-6 right-6 text-3xl">✕</button>
+            <h3 id="detail-title" class="text-2xl font-bold mb-8 text-blue-400">DATA ANALYSIS</h3>
+            <div class="h-[400px]"><canvas id="detailChart"></canvas></div>
         </div>
     </div>
 
@@ -134,70 +138,92 @@
         let isEditMode = false;
         let currentTab = 'group';
 
-        // 1. 페이지 및 도면 제어
+        // 1. 페이지 및 이미지(.jpg) 제어
         function updatePage() {
             const container = document.getElementById('blueprint');
-            // 이미지 파일명이 rtu_ui.png, rtu_ui2.png, rtu_ui3.png 인지 확인 필요
-            container.style.backgroundImage = `url('rtu_ui${curPage === 1 ? '' : curPage}.png')`;
+            const suffix = curPage === 1 ? '' : curPage;
+            // 확장자 명을 .jpg로 수정
+            container.style.backgroundImage = `url('rtu_ui${suffix}.jpg')`;
             
-            // 요구사항: 1p(우측만), 2p(좌우), 3p(좌측만)
             document.getElementById('btn-prev').style.visibility = curPage === 1 ? 'hidden' : 'visible';
             document.getElementById('btn-next').style.visibility = curPage === 3 ? 'hidden' : 'visible';
 
+            if(!isEditMode) renderLayers();
+        }
+
+        function renderLayers() {
+            const container = document.getElementById('blueprint');
             container.innerHTML = '';
             for(let i=1; i<=10; i++) {
                 const rect = document.createElement('div');
-                rect.className = `lcu-layer ${isEditMode ? 'edit-mode' : ''}`;
-                rect.style.width = '80px'; rect.style.height = '60px';
-                rect.style.top = (15 + (i % 4) * 20) + '%';
-                rect.style.left = (10 + (i * 7)) + '%';
+                rect.className = 'lcu-layer';
+                rect.style.width = '100px'; rect.style.height = '80px';
+                rect.style.top = (20 + (i % 3) * 20) + '%';
+                rect.style.left = (5 + (i * 8)) + '%';
                 
                 const dot = document.createElement('div');
                 dot.id = `lcu-dot-${i}`;
-                dot.className = `lcu-status-dot ${i % 4 === 0 ? 'bg-red-500' : 'bg-green-500'}`;
+                dot.className = `lcu-status-dot ${i % 3 === 0 ? 'bg-red-500' : 'bg-green-500'}`;
                 dot.innerText = i.toString().padStart(2, '0');
                 
+                const resizer = document.createElement('div');
+                resizer.className = 'resizer';
+                
                 rect.appendChild(dot);
-                rect.onclick = () => {
-                    if(isEditMode) {
-                        const newId = prompt("새로운 LCU 번호 입력:", i);
-                        if(newId) dot.innerText = newId.padStart(2, '0');
-                    } else if(dot.classList.contains('bg-red-500')) {
+                rect.appendChild(resizer);
+                
+                // 켜기 기능만 존재
+                rect.onclick = (e) => {
+                    if(!isEditMode && dot.classList.contains('bg-red-500')) {
                         dot.classList.replace('bg-red-500', 'bg-green-500');
                     }
                 };
+
+                // 크기 조절 로직 추가
+                resizer.addEventListener('mousedown', initResize, false);
+                
                 container.appendChild(rect);
             }
         }
 
-        function changePage(dir) {
-            curPage += dir;
-            updatePage();
+        // 2. 크기 조절 (Resizing) 핸들러
+        function initResize(e) {
+            e.stopPropagation();
+            const element = e.target.parentElement;
+            window.addEventListener('mousemove', Resize, false);
+            window.addEventListener('mouseup', stopResize, false);
+
+            function Resize(e) {
+                const containerRect = document.getElementById('blueprint').getBoundingClientRect();
+                element.style.width = (e.clientX - element.getBoundingClientRect().left) + 'px';
+                element.style.height = (e.clientY - element.getBoundingClientRect().top) + 'px';
+            }
+            function stopResize() {
+                window.removeEventListener('mousemove', Resize, false);
+                window.removeEventListener('mouseup', stopResize, false);
+            }
         }
 
-        // 2. 관리자 로그인
-        function showLogin() {
-            document.getElementById('page-user').classList.add('hidden');
-            document.getElementById('page-login').classList.remove('hidden');
-        }
-        function hideLogin() {
-            document.getElementById('page-login').classList.add('hidden');
-            document.getElementById('page-user').classList.remove('hidden');
-            clearPin();
-        }
+        function changePage(dir) { curPage += dir; updatePage(); }
+
+        // 3. 관리자 기능
+        function showLogin() { document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-login').classList.remove('hidden'); }
+        function hideLogin() { document.getElementById('page-login').classList.add('hidden'); document.getElementById('page-user').classList.remove('hidden'); clearPin(); }
         function pressKey(num) {
-            if(pin.length < 4) {
-                pin += num;
-                document.getElementById('pin-display').innerText = '●'.repeat(pin.length);
-            }
+            if(pin.length < 4) { pin += num; document.getElementById('pin-display').innerText = '●'.repeat(pin.length); }
             if(pin.length === 4) {
                 if(pin === "0000") enterAdmin();
-                else { alert("PIN 번호가 틀립니다."); clearPin(); }
+                else { alert("PIN 틀림"); clearPin(); }
             }
         }
         function clearPin() { pin = ""; document.getElementById('pin-display').innerText = ""; }
 
-        // 3. 관리자 페이지 데이터 및 탭 전환
+        function enterAdmin() {
+            document.getElementById('page-login').classList.add('hidden');
+            document.getElementById('page-admin-main').classList.remove('hidden');
+            renderAdminTable();
+        }
+
         function switchAdminTab(type) {
             currentTab = type;
             document.getElementById('tab-group').className = type === 'group' ? "px-8 py-2 bg-blue-600 rounded-lg font-bold" : "px-8 py-2 rounded-lg text-slate-400";
@@ -208,78 +234,58 @@
         function renderAdminTable() {
             const tbody = document.getElementById('admin-table-body');
             tbody.innerHTML = '';
-            const prefix = currentTab === 'group' ? 'Group' : 'LCU';
-            
+            const label = currentTab === 'group' ? 'Group' : 'LCU';
             for(let i=1; i<=10; i++) {
                 const tr = document.createElement('tr');
                 tr.className = "bg-slate-900 border border-slate-800 hover:bg-slate-800 transition cursor-pointer rounded-xl";
-                tr.onclick = () => showGraph(`${prefix} ${i}`);
-                tr.innerHTML = `
-                    <td class="p-5 font-bold text-blue-400">${prefix} ${i}</td>
-                    <td class="p-5 text-center font-mono">${(Math.random()*50).toFixed(1)} kW</td>
-                    <td class="p-5 text-center font-mono">${(Math.random()*500).toFixed(1)} kWh</td>
-                    <td class="p-5 text-center text-green-400 font-mono font-bold">${(Math.random()*2).toFixed(2)} kW</td>
-                `;
+                tr.onclick = () => showGraph(`${label} ${i}`);
+                tr.innerHTML = `<td class="p-5 font-bold text-blue-400 text-left pl-10">${label} ${i}</td><td>${(Math.random()*30).toFixed(1)} kW</td><td>${(Math.random()*200).toFixed(1)} kWh</td><td class="text-green-400 font-bold">${(Math.random()*1.5).toFixed(2)} kW</td>`;
                 tbody.appendChild(tr);
             }
         }
 
-        function enterAdmin() {
-            document.getElementById('page-login').classList.add('hidden');
-            document.getElementById('page-admin-main').classList.remove('hidden');
-            renderAdminTable();
-        }
-
-        // 4. 그룹 관리(편집) 기능
-        function toggleGroupEdit() {
-            alert("편집 모드: 시작 화면으로 이동합니다. 레이어를 드래그하거나 번호를 수정하세요.");
+        // 4. 편집 모드 제어
+        function enterGroupEdit() {
             isEditMode = true;
             document.getElementById('page-admin-main').classList.add('hidden');
             document.getElementById('page-user').classList.remove('hidden');
             document.getElementById('blueprint').classList.add('edit-mode');
-            updatePage();
+            document.getElementById('btn-edit-exit').classList.remove('hidden');
+            alert("편집 모드: 박스의 모서리를 드래그하여 크기를 조절하세요.");
         }
 
-        // 5. 24시간 역순 그래프 (현재 시각이 맨 오른쪽)
+        function exitEditMode() {
+            isEditMode = false;
+            document.getElementById('blueprint').classList.remove('edit-mode');
+            document.getElementById('btn-edit-exit').classList.add('hidden');
+            alert("설정이 저장되었습니다.");
+        }
+
+        // 5. 24시간 역순 그래프
         let myChart;
         function showGraph(title) {
             document.getElementById('modal-detail').classList.remove('hidden');
-            document.getElementById('detail-title').innerText = `${title} 분석 결과 (최근 24시간 추이)`;
+            document.getElementById('detail-title').innerText = title + " 24시간 분석";
             const ctx = document.getElementById('detailChart').getContext('2d');
-            
             const now = new Date().getHours();
-            const labels = Array.from({length: 24}, (_, i) => {
-                let h = (now - (23 - i));
-                return (h < 0 ? h + 24 : h) + "시";
-            });
-
+            const labels = Array.from({length: 24}, (_, i) => ((now - (23-i) + 24) % 24) + "시");
             if(myChart) myChart.destroy();
             myChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [
-                        { label: '절감량', data: labels.map(() => Math.random()*20), borderColor: '#3b82f6', tension: 0.3 },
-                        { label: '전력량', data: labels.map(() => Math.random()*100), borderColor: '#10b981', tension: 0.3 },
-                        { label: '순시전력', data: labels.map(() => Math.random()*2), borderColor: '#f59e0b', tension: 0.3 }
+                        { label: '절감량', data: labels.map(()=>Math.random()*15), borderColor: '#3b82f6' },
+                        { label: '전력량', data: labels.map(()=>Math.random()*80), borderColor: '#10b981' },
+                        { label: '순시전력', data: labels.map(()=>Math.random()*2), borderColor: '#f59e0b' }
                     ]
                 },
-                options: {
-                    maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: '#94a3b8' } } },
-                    scales: {
-                        y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
-                        x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
-                    }
-                }
+                options: { maintainAspectRatio: false, color: '#94a3b8' }
             });
         }
         function closeDetail() { document.getElementById('modal-detail').classList.add('hidden'); }
 
-        setInterval(() => {
-            document.getElementById('top-clock').innerText = new Date().toLocaleTimeString();
-        }, 1000);
-
+        setInterval(() => { document.getElementById('top-clock').innerText = new Date().toLocaleTimeString(); }, 1000);
         window.onload = updatePage;
     </script>
 </body>
