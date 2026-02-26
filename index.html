@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>RTU System Prototype v2.6</title>
+    <title>RTU System Prototype v2.7</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -109,22 +109,15 @@
         </div>
     </div>
 
-    <div id="modal-detail" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-10 backdrop-blur-sm">
-        <div class="bg-slate-900 w-full max-w-5xl p-10 rounded-3xl border border-slate-800 relative shadow-2xl">
-            <button onclick="closeDetail()" class="absolute top-6 right-6 text-3xl text-slate-500 hover:text-white">✕</button>
-            <h3 id="detail-title" class="text-2xl font-bold mb-8 text-blue-400">DATA ANALYSIS</h3>
-            <div class="h-[450px]"><canvas id="detailChart"></canvas></div>
-        </div>
-    </div>
-
     <script>
+        // 초기 데이터 (각 도면당 5개씩)
         let pageData = {
             1: [ {t:15, l:10, w:100, h:80, id:1}, {t:15, l:28, w:100, h:80, id:2}, {t:15, l:46, w:100, h:80, id:3}, {t:15, l:64, w:100, h:80, id:4}, {t:15, l:82, w:100, h:80, id:5} ],
             2: [ {t:40, l:10, w:100, h:80, id:6}, {t:40, l:28, w:100, h:80, id:7}, {t:40, l:46, w:100, h:80, id:8}, {t:40, l:64, w:100, h:80, id:9}, {t:40, l:82, w:100, h:80, id:10} ],
             3: [ {t:65, l:10, w:100, h:80, id:11}, {t:65, l:28, w:100, h:80, id:12}, {t:65, l:46, w:100, h:80, id:13}, {t:65, l:64, w:100, h:80, id:14}, {t:65, l:82, w:100, h:80, id:15} ]
         };
 
-        let curPage = 1, pin = "", isEditMode = false, currentTab = 'group', selectedLayer = null, myChart = null;
+        let curPage = 1, pin = "", isEditMode = false, currentTab = 'group', selectedLayerIdx = null;
 
         function updatePage() {
             const container = document.getElementById('blueprint');
@@ -143,75 +136,111 @@
             layers.forEach((data, index) => {
                 const rect = document.createElement('div');
                 rect.className = `lcu-layer ${isEditMode ? 'edit-mode' : ''}`;
-                rect.style.top = data.t + '%'; rect.style.left = data.l + '%';
-                rect.style.width = data.w + 'px'; rect.style.height = data.h + 'px';
-                rect.dataset.idx = index;
+                if(isEditMode && selectedLayerIdx === index) rect.classList.add('selected');
+
+                rect.style.top = data.t + '%';
+                rect.style.left = data.l + '%';
+                rect.style.width = data.w + 'px';
+                rect.style.height = data.h + 'px';
 
                 const dot = document.createElement('div');
                 dot.className = `lcu-status-dot bg-red-600 shadow-lg shadow-red-900/50`;
                 dot.innerText = data.id.toString().padStart(2, '0');
                 rect.appendChild(dot);
 
-                ['tl', 'tr', 'bl', 'br'].forEach(pos => {
-                    const resizer = document.createElement('div');
-                    resizer.className = `resizer ${pos}`;
-                    resizer.addEventListener('mousedown', (e) => initResize(e, pos, rect, index));
-                    rect.appendChild(resizer);
-                });
-
-                rect.addEventListener('mousedown', (e) => initDrag(e, rect, index));
-                
-                rect.onclick = (e) => {
-                    if(!isEditMode) {
-                        // [수정 핵심] 빨간색일 때만 초록색으로 변경 가능 (OFF -> ON 만 허용)
+                if(isEditMode) {
+                    ['tl', 'tr', 'bl', 'br'].forEach(pos => {
+                        const resizer = document.createElement('div');
+                        resizer.className = `resizer ${pos}`;
+                        resizer.onmousedown = (e) => initResize(e, pos, index);
+                        rect.appendChild(resizer);
+                    });
+                    rect.onmousedown = (e) => {
+                        if(e.target.classList.contains('resizer')) return;
+                        selectLayer(index);
+                        initDrag(e, index);
+                    };
+                } else {
+                    rect.onclick = () => {
                         if(dot.classList.contains('bg-red-600')) {
                             dot.classList.remove('bg-red-600', 'shadow-red-900/50');
                             dot.classList.add('bg-green-500', 'shadow-green-900/50');
                         }
-                        return;
-                    }
-                    e.stopPropagation();
-                    if(selectedLayer) selectedLayer.classList.remove('selected');
-                    selectedLayer = rect;
-                    selectedLayer.classList.add('selected');
-                    document.getElementById('btn-delete').disabled = false;
-                };
+                    };
+                }
                 container.appendChild(rect);
             });
         }
 
-        // --- 유틸리티 함수 (드래그, 리사이즈, 로그인 등 v2.5와 동일) ---
-        function initResize(e, pos, rect, idx) {
-            e.stopPropagation();
-            let startX = e.clientX, startY = e.clientY, startW = rect.offsetWidth, startH = rect.offsetHeight, startL = rect.offsetLeft, startT = rect.offsetTop;
-            function doResize(e) {
-                const dx = e.clientX - startX, dy = e.clientY - startY;
-                if(pos.includes('r')) rect.style.width = Math.max(50, startW + dx) + 'px';
-                if(pos.includes('b')) rect.style.height = Math.max(50, startH + dy) + 'px';
-                if(pos.includes('l')) { const nw = Math.max(50, startW - dx); rect.style.width = nw + 'px'; rect.style.left = (startL + (startW - nw)) + 'px'; }
-                if(pos.includes('t')) { const nh = Math.max(50, startH - dy); rect.style.height = nh + 'px'; rect.style.top = (startT + (startH - nh)) + 'px'; }
-                pageData[curPage][idx].w = rect.offsetWidth; pageData[curPage][idx].h = rect.offsetHeight;
-                pageData[curPage][idx].l = (rect.offsetLeft / 1000) * 100; pageData[curPage][idx].t = (rect.offsetTop / 600) * 100;
-            }
-            function stopResize() { window.removeEventListener('mousemove', doResize); window.removeEventListener('mouseup', stopResize); }
-            window.addEventListener('mousemove', doResize); window.addEventListener('mouseup', stopResize);
+        function selectLayer(idx) {
+            selectedLayerIdx = idx;
+            document.getElementById('btn-delete').disabled = false;
+            renderLayers();
         }
 
-        function initDrag(e, rect, idx) {
-            if(!isEditMode || e.target.classList.contains('resizer')) return;
+        function addLayer() {
+            const nextId = prompt("추가할 LCU 번호:", "16");
+            if(nextId) {
+                const newData = {t:40, l:40, w:100, h:80, id: parseInt(nextId)};
+                pageData[curPage].push(newData);
+                selectedLayerIdx = pageData[curPage].length - 1; // 새 레이어 자동 선택
+                renderLayers();
+            }
+        }
+
+        function deleteSelectedLayer() {
+            if(selectedLayerIdx !== null) {
+                pageData[curPage].splice(selectedLayerIdx, 1);
+                selectedLayerIdx = null;
+                document.getElementById('btn-delete').disabled = true;
+                renderLayers();
+            }
+        }
+
+        function saveAndExitEdit() {
+            isEditMode = false;
+            selectedLayerIdx = null;
+            document.getElementById('edit-controls').classList.add('hidden');
+            document.getElementById('page-user').classList.add('hidden');
+            document.getElementById('page-admin-main').classList.remove('hidden');
+            document.getElementById('btn-login-trigger').classList.remove('hidden');
+            renderLayers(); // 최종 상태 렌더링
+        }
+
+        // 드래그 로직 데이터 직접 수정
+        function initDrag(e, idx) {
             let startX = e.clientX, startY = e.clientY;
             function doDrag(e) {
                 const dx = e.clientX - startX, dy = e.clientY - startY;
-                rect.style.left = (rect.offsetLeft + dx) + 'px'; rect.style.top = (rect.offsetTop + dy) + 'px';
-                pageData[curPage][idx].l = (rect.offsetLeft / 1000) * 100; pageData[curPage][idx].t = (rect.offsetTop / 600) * 100;
+                pageData[curPage][idx].l += (dx / 1000) * 100;
+                pageData[curPage][idx].t += (dy / 600) * 100;
                 startX = e.clientX; startY = e.clientY;
+                renderLayers();
             }
             function stopDrag() { window.removeEventListener('mousemove', doDrag); window.removeEventListener('mouseup', stopDrag); }
-            window.addEventListener('mousemove', doDrag); window.addEventListener('mouseup', stopDrag);
+            window.addEventListener('mousemove', doDrag);
+            window.addEventListener('mouseup', stopDrag);
         }
 
-        function addLayer() { const nextId = prompt("추가할 LCU 번호:", "00"); if(nextId) { pageData[curPage].push({t:45, l:45, w:100, h:80, id: parseInt(nextId)}); renderLayers(); } }
-        function deleteSelectedLayer() { if(selectedLayer) { pageData[curPage].splice(selectedLayer.dataset.idx, 1); selectedLayer = null; document.getElementById('btn-delete').disabled = true; renderLayers(); } }
+        function initResize(e, pos, idx) {
+            e.stopPropagation();
+            let startX = e.clientX, startY = e.clientY;
+            function doResize(e) {
+                const dx = e.clientX - startX, dy = e.clientY - startY;
+                const data = pageData[curPage][idx];
+                if(pos.includes('r')) data.w += dx;
+                if(pos.includes('b')) data.h += dy;
+                if(pos.includes('l')) { data.w -= dx; data.l += (dx/1000)*100; }
+                if(pos.includes('t')) { data.h -= dy; data.t += (dy/600)*100; }
+                startX = e.clientX; startY = e.clientY;
+                renderLayers();
+            }
+            function stopResize() { window.removeEventListener('mousemove', doResize); window.removeEventListener('mouseup', stopResize); }
+            window.addEventListener('mousemove', doResize);
+            window.addEventListener('mouseup', stopResize);
+        }
+
+        // 로그인 및 기타 로직 (기존과 동일)
         function showLogin() { clearPin(); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-login').classList.remove('hidden'); }
         function hideLogin() { document.getElementById('page-login').classList.add('hidden'); document.getElementById('page-user').classList.remove('hidden'); }
         function pressKey(num) { if(pin.length < 4) { pin += num; document.getElementById('pin-display').innerText = '●'.repeat(pin.length); } if(pin.length === 4) { if(pin === "0000") { document.getElementById('page-login').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); renderAdminTable(); } else { alert("PIN 오류"); clearPin(); } } }
@@ -219,31 +248,16 @@
         function renderAdminTable() {
             const tbody = document.getElementById('admin-table-body');
             tbody.innerHTML = '';
-            const label = currentTab === 'group' ? 'Group' : 'LCU';
             for(let i=1; i<=15; i++) {
                 const tr = document.createElement('tr');
                 tr.className = "bg-slate-900 border border-slate-800 hover:bg-slate-800 transition cursor-pointer rounded-xl";
-                tr.onclick = () => showGraph(`${label} ${i}`);
-                tr.innerHTML = `<td class="p-4 font-bold text-blue-400 text-left pl-10">${label} ${i}</td><td>${(Math.random()*15).toFixed(1)} kW</td><td>${(Math.random()*120).toFixed(1)} kWh</td><td class="text-green-500 font-bold">${(Math.random()*1.1).toFixed(2)} kW</td>`;
+                tr.innerHTML = `<td class="p-4 font-bold text-blue-400 text-left pl-10">LCU ${i}</td><td>${(Math.random()*15).toFixed(1)} kW</td><td>${(Math.random()*120).toFixed(1)} kWh</td><td class="text-green-500 font-bold">${(Math.random()*1.1).toFixed(2)} kW</td>`;
                 tbody.appendChild(tr);
             }
         }
-        function showGraph(title) {
-            document.getElementById('modal-detail').classList.remove('hidden');
-            document.getElementById('detail-title').innerText = `${title} 분석 데이터`;
-            const ctx = document.getElementById('detailChart').getContext('2d');
-            if(myChart) myChart.destroy();
-            myChart = new Chart(ctx, {
-                type: 'line',
-                data: { labels: Array.from({length:24},(_,i)=>i+"시"), datasets: [{ label: '순시전력(kW)', data: Array.from({length:24},()=>Math.random()), borderColor: '#10b981', tension: 0.3 }] },
-                options: { responsive: true, maintainAspectRatio: false, color: '#94a3b8' }
-            });
-        }
-        function closeDetail() { document.getElementById('modal-detail').classList.add('hidden'); }
-        function switchAdminTab(t) { currentTab = t; renderAdminTable(); }
         function enterGroupEdit() { isEditMode = true; document.getElementById('page-admin-main').classList.add('hidden'); document.getElementById('page-user').classList.remove('hidden'); document.getElementById('edit-controls').classList.remove('hidden'); document.getElementById('btn-login-trigger').classList.add('hidden'); renderLayers(); }
-        function saveAndExitEdit() { isEditMode = false; document.getElementById('edit-controls').classList.add('hidden'); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); document.getElementById('btn-login-trigger').classList.remove('hidden'); }
         function confirmCancelEdit() { if(confirm("종료하시겠습니까?")) saveAndExitEdit(); }
+        function switchAdminTab(t) { currentTab = t; renderAdminTable(); }
         function changePage(dir) { curPage += dir; updatePage(); }
         setInterval(() => { document.getElementById('top-clock').innerText = new Date().toLocaleTimeString(); }, 1000);
         window.onload = updatePage;
