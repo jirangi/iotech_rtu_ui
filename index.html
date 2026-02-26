@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>RTU System Prototype v2.4</title>
+    <title>RTU System Prototype v2.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -24,11 +24,9 @@
             cursor: pointer;
             user-select: none;
         }
-        /* 편집 모드: 모든 테두리 상시 노출 */
         .edit-mode .lcu-layer { border: 2px dashed #3b82f6; background: rgba(59, 130, 246, 0.1); cursor: move; }
         .lcu-layer.selected { border: 2px solid #fbbf24 !important; background: rgba(251, 191, 36, 0.2) !important; }
 
-        /* 네 모서리 리사이저 (편집 모드 시 상시 노출) */
         .resizer {
             display: none; width: 10px; height: 10px;
             background: #3b82f6; position: absolute; border-radius: 50%;
@@ -49,7 +47,7 @@
         .keypad-btn:active { background: #3b82f6; }
     </style>
 </head>
-<body class="bg-slate-950 text-white overflow-hidden font-sans">
+<body class="bg-slate-950 text-white overflow-hidden font-sans text-sm">
 
     <div id="page-user" class="min-h-screen flex flex-col">
         <header class="p-4 flex justify-between items-center bg-slate-900 border-b border-slate-800 shadow-xl">
@@ -58,7 +56,7 @@
                 <div id="top-clock" class="font-mono text-lg text-slate-400">00:00:00</div>
                 <button id="btn-login-trigger" onclick="showLogin()" class="p-2 bg-slate-800 rounded-lg">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 002-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                 </button>
             </div>
@@ -82,11 +80,11 @@
 
     <div id="page-login" class="hidden min-h-screen flex items-center justify-center bg-slate-950/98 backdrop-blur-md">
         <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[400px] text-center shadow-2xl">
-            <h2 class="text-xl font-bold mb-6 text-blue-400">PIN CODE</h2>
-            <div class="bg-black/50 p-5 mb-6 rounded-2xl text-3xl tracking-widest h-16 flex items-center justify-center border border-slate-800 font-mono" id="pin-display"></div>
+            <h2 class="text-xl font-bold mb-6 text-blue-400">ADMIN ACCESS</h2>
+            <div class="bg-black/50 p-5 mb-6 rounded-2xl text-3xl tracking-[0.5em] h-16 flex items-center justify-center border border-slate-800 font-mono" id="pin-display"></div>
             <div class="grid grid-cols-3 gap-2">
                 <script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="keypad-btn">${i}</button>`);</script>
-                <button onclick="clearPin()" class="keypad-btn text-red-500">C</button>
+                <button onclick="clearPin()" class="keypad-btn text-red-500 font-bold">C</button>
                 <button onclick="pressKey('0')" class="keypad-btn">0</button>
                 <button onclick="hideLogin()" class="keypad-btn text-slate-500">Back</button>
             </div>
@@ -106,24 +104,43 @@
         </nav>
         <div class="p-8 flex-1 overflow-auto">
             <table class="w-full border-separate border-spacing-y-2 max-w-6xl mx-auto text-center">
-                <thead><tr class="text-slate-500 text-xs uppercase tracking-tighter"><th>장비/그룹명</th><th>대기전력 절감량</th><th>누적 전력량</th><th>실시간 순시전력</th></tr></thead>
+                <thead><tr class="text-slate-500 text-xs uppercase"><th>장비/그룹명</th><th>대기전력 절감량</th><th>누적 전력량</th><th>실시간 순시전력</th></tr></thead>
                 <tbody id="admin-table-body"></tbody>
             </table>
         </div>
     </div>
 
+    <div id="modal-detail" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-10 backdrop-blur-sm">
+        <div class="bg-slate-900 w-full max-w-5xl p-10 rounded-3xl border border-slate-800 relative shadow-2xl">
+            <button onclick="closeDetail()" class="absolute top-6 right-6 text-3xl text-slate-500 hover:text-white">✕</button>
+            <h3 id="detail-title" class="text-2xl font-bold mb-8 text-blue-400">REALTIME DATA ANALYSIS</h3>
+            <div class="h-[450px]"><canvas id="detailChart"></canvas></div>
+        </div>
+    </div>
+
     <script>
-        // 페이지별 독립적인 레이어 데이터를 저장하는 객체
+        // 도면별 5개씩 배치 (1: 1~5, 2: 6~10, 3: 11~15)
         let pageData = {
-            1: [ {t:20, l:15, w:100, h:80, id:1}, {t:20, l:35, w:100, h:80, id:2}, {t:20, l:55, w:100, h:80, id:3} ],
-            2: [ {t:40, l:15, w:100, h:80, id:6}, {t:40, l:35, w:100, h:80, id:7} ],
-            3: [ {t:60, l:45, w:120, h:90, id:11} ]
+            1: [ 
+                {t:15, l:10, w:100, h:80, id:1}, {t:15, l:28, w:100, h:80, id:2}, {t:15, l:46, w:100, h:80, id:3},
+                {t:15, l:64, w:100, h:80, id:4}, {t:15, l:82, w:100, h:80, id:5} 
+            ],
+            2: [ 
+                {t:40, l:10, w:100, h:80, id:6}, {t:40, l:28, w:100, h:80, id:7}, {t:40, l:46, w:100, h:80, id:8},
+                {t:40, l:64, w:100, h:80, id:9}, {t:40, l:82, w:100, h:80, id:10}
+            ],
+            3: [ 
+                {t:65, l:10, w:100, h:80, id:11}, {t:65, l:28, w:100, h:80, id:12}, {t:65, l:46, w:100, h:80, id:13},
+                {t:65, l:64, w:100, h:80, id:14}, {t:65, l:82, w:100, h:80, id:15}
+            ]
         };
 
         let curPage = 1;
         let pin = "";
         let isEditMode = false;
+        let currentTab = 'group';
         let selectedLayer = null;
+        let myChart = null;
 
         function updatePage() {
             const container = document.getElementById('blueprint');
@@ -139,9 +156,9 @@
         function renderLayers() {
             const container = document.getElementById('blueprint');
             container.innerHTML = '';
-            const currentLayers = pageData[curPage] || [];
+            const layers = pageData[curPage] || [];
             
-            currentLayers.forEach((data, index) => {
+            layers.forEach((data, index) => {
                 const rect = document.createElement('div');
                 rect.className = `lcu-layer ${isEditMode ? 'edit-mode' : ''}`;
                 rect.style.top = data.t + '%';
@@ -151,12 +168,10 @@
                 rect.dataset.idx = index;
 
                 const dot = document.createElement('div');
-                // 데모용: 무조건 빨간색(OFF)으로 시작
                 dot.className = `lcu-status-dot bg-red-600 shadow-lg shadow-red-900/50`;
                 dot.innerText = data.id.toString().padStart(2, '0');
                 rect.appendChild(dot);
 
-                // 모든 레이어에 리사이저 추가 (기존/신규 동일)
                 ['tl', 'tr', 'bl', 'br'].forEach(pos => {
                     const resizer = document.createElement('div');
                     resizer.className = `resizer ${pos}`;
@@ -168,7 +183,6 @@
                 
                 rect.onclick = (e) => {
                     if(!isEditMode) {
-                        // 사용자 모드: 터치 시 초록색(ON)으로 변경
                         dot.classList.toggle('bg-red-600');
                         dot.classList.toggle('bg-green-500');
                         dot.classList.toggle('shadow-red-900/50');
@@ -186,26 +200,7 @@
             });
         }
 
-        // --- 드래그 & 리사이즈 로직 (데이터 업데이트 포함) ---
-        function initDrag(e, rect, idx) {
-            if(!isEditMode || e.target.classList.contains('resizer')) return;
-            let startX = e.clientX, startY = e.clientY;
-            function doDrag(e) {
-                const dx = e.clientX - startX, dy = e.clientY - startY;
-                const newLeft = rect.offsetLeft + dx;
-                const newTop = rect.offsetTop + dy;
-                rect.style.left = newLeft + 'px';
-                rect.style.top = newTop + 'px';
-                // 데이터 실시간 동기화 (%)
-                pageData[curPage][idx].l = (newLeft / 1000) * 100;
-                pageData[curPage][idx].t = (newTop / 600) * 100;
-                startX = e.clientX; startY = e.clientY;
-            }
-            function stopDrag() { window.removeEventListener('mousemove', doDrag); window.removeEventListener('mouseup', stopDrag); }
-            window.addEventListener('mousemove', doDrag);
-            window.addEventListener('mouseup', stopDrag);
-        }
-
+        // 리사이즈 로직 통일
         function initResize(e, pos, rect, idx) {
             e.stopPropagation();
             let startX = e.clientX, startY = e.clientY;
@@ -214,11 +209,18 @@
 
             function doResize(e) {
                 const dx = e.clientX - startX, dy = e.clientY - startY;
-                if(pos.includes('r')) rect.style.width = (startW + dx) + 'px';
-                if(pos.includes('b')) rect.style.height = (startH + dy) + 'px';
-                if(pos.includes('l')) { rect.style.width = (startW - dx) + 'px'; rect.style.left = (startL + dx) + 'px'; }
-                if(pos.includes('t')) { rect.style.height = (startH - dy) + 'px'; rect.style.top = (startT + dy) + 'px'; }
-                
+                if(pos.includes('r')) rect.style.width = Math.max(50, startW + dx) + 'px';
+                if(pos.includes('b')) rect.style.height = Math.max(50, startH + dy) + 'px';
+                if(pos.includes('l')) { 
+                    const nw = Math.max(50, startW - dx);
+                    rect.style.width = nw + 'px'; 
+                    rect.style.left = (startL + (startW - nw)) + 'px'; 
+                }
+                if(pos.includes('t')) { 
+                    const nh = Math.max(50, startH - dy);
+                    rect.style.height = nh + 'px'; 
+                    rect.style.top = (startT + (startH - nh)) + 'px'; 
+                }
                 pageData[curPage][idx].w = rect.offsetWidth;
                 pageData[curPage][idx].h = rect.offsetHeight;
                 pageData[curPage][idx].l = (rect.offsetLeft / 1000) * 100;
@@ -229,66 +231,49 @@
             window.addEventListener('mouseup', stopResize);
         }
 
-        // --- 그룹 관리 기능 ---
+        function initDrag(e, rect, idx) {
+            if(!isEditMode || e.target.classList.contains('resizer')) return;
+            let startX = e.clientX, startY = e.clientY;
+            function doDrag(e) {
+                const dx = e.clientX - startX, dy = e.clientY - startY;
+                rect.style.left = (rect.offsetLeft + dx) + 'px';
+                rect.style.top = (rect.offsetTop + dy) + 'px';
+                pageData[curPage][idx].l = (rect.offsetLeft / 1000) * 100;
+                pageData[curPage][idx].t = (rect.offsetTop / 600) * 100;
+                startX = e.clientX; startY = e.clientY;
+            }
+            function stopDrag() { window.removeEventListener('mousemove', doDrag); window.removeEventListener('mouseup', stopDrag); }
+            window.addEventListener('mousemove', doDrag);
+            window.addEventListener('mouseup', stopDrag);
+        }
+
         function addLayer() {
-            const newId = prompt("새 그룹의 LCU 번호를 입력하세요:", "00");
-            if(newId) {
-                pageData[curPage].push({t:45, l:45, w:100, h:80, id: parseInt(newId)});
+            const nextId = prompt("추가할 LCU 번호:", "00");
+            if(nextId) {
+                pageData[curPage].push({t:45, l:45, w:100, h:80, id: parseInt(nextId)});
                 renderLayers();
             }
         }
 
         function deleteSelectedLayer() {
             if(selectedLayer) {
-                const idx = selectedLayer.dataset.idx;
-                pageData[curPage].splice(idx, 1);
+                pageData[curPage].splice(selectedLayer.dataset.idx, 1);
                 selectedLayer = null;
                 document.getElementById('btn-delete').disabled = true;
                 renderLayers();
             }
         }
 
-        // --- 화면 전환 및 로그인 ---
-        function enterGroupEdit() {
-            isEditMode = true;
-            document.getElementById('page-admin-main').classList.add('hidden');
-            document.getElementById('page-user').classList.remove('hidden');
-            document.getElementById('header-title').innerText = "EDIT MODE: " + curPage + "F";
-            document.getElementById('btn-login-trigger').classList.add('hidden');
-            document.getElementById('edit-controls').classList.remove('hidden');
-            updatePage();
-        }
-
-        function saveAndExitEdit() {
-            alert("변경사항이 도면 " + curPage + "에 저장되었습니다.");
-            exitToAdmin();
-        }
-
-        function confirmCancelEdit() {
-            if(confirm("저장하지 않고 편집을 종료하시겠습니까?")) exitToAdmin();
-        }
-
-        function exitToAdmin() {
-            isEditMode = false;
-            document.getElementById('header-title').innerText = "RTU CONTROL CENTER";
-            document.getElementById('btn-login-trigger').classList.remove('hidden');
-            document.getElementById('edit-controls').classList.add('hidden');
-            document.getElementById('page-user').classList.add('hidden');
-            document.getElementById('page-admin-main').classList.remove('hidden');
-            renderLayers();
-        }
-
-        function showLogin() {
+        // 로그인 및 관리자 로직
+        function showLogin() { 
             clearPin();
-            document.getElementById('page-user').classList.add('hidden');
-            document.getElementById('page-login').classList.remove('hidden');
+            document.getElementById('page-user').classList.add('hidden'); 
+            document.getElementById('page-login').classList.remove('hidden'); 
         }
-
         function hideLogin() { 
             document.getElementById('page-login').classList.add('hidden'); 
             document.getElementById('page-user').classList.remove('hidden'); 
         }
-
         function pressKey(num) {
             if(pin.length < 4) { pin += num; document.getElementById('pin-display').innerText = '●'.repeat(pin.length); }
             if(pin.length === 4) {
@@ -296,29 +281,81 @@
                     document.getElementById('page-login').classList.add('hidden');
                     document.getElementById('page-admin-main').classList.remove('hidden');
                     renderAdminTable();
-                } else { alert("PIN 코드가 일치하지 않습니다."); clearPin(); }
+                } else { alert("PIN 번호가 틀렸습니다."); clearPin(); }
             }
         }
-
         function clearPin() { pin = ""; document.getElementById('pin-display').innerText = ""; }
 
         function renderAdminTable() {
             const tbody = document.getElementById('admin-table-body');
             tbody.innerHTML = '';
-            const prefix = currentTab === 'group' ? 'Group' : 'LCU';
-            for(let i=1; i<=8; i++) {
+            const label = currentTab === 'group' ? 'Group' : 'LCU';
+            for(let i=1; i<=15; i++) {
                 const tr = document.createElement('tr');
                 tr.className = "bg-slate-900 border border-slate-800 hover:bg-slate-800 transition cursor-pointer rounded-xl";
-                tr.innerHTML = `<td class="p-4 font-bold text-blue-400 text-left pl-10">${prefix} ${i}</td><td>${(Math.random()*25).toFixed(1)} kW</td><td>${(Math.random()*150).toFixed(1)} kWh</td><td class="text-green-500 font-mono font-bold">${(Math.random()*1.2).toFixed(2)} kW</td>`;
+                // 클릭 이벤트 연결 (그래프 팝업)
+                tr.onclick = () => showGraph(`${label} ${i}`);
+                tr.innerHTML = `<td class="p-4 font-bold text-blue-400 text-left pl-10">${label} ${i}</td><td>${(Math.random()*15).toFixed(1)} kW</td><td>${(Math.random()*120).toFixed(1)} kWh</td><td class="text-green-500 font-bold">${(Math.random()*1.1).toFixed(2)} kW</td>`;
                 tbody.appendChild(tr);
             }
         }
 
-        function switchAdminTab(type) {
-            currentTab = type;
-            document.getElementById('tab-group').className = type === 'group' ? "px-8 py-2 bg-blue-600 rounded-lg font-bold" : "px-8 py-2 rounded-lg text-slate-400";
-            document.getElementById('tab-individual').className = type === 'individual' ? "px-8 py-2 bg-blue-600 rounded-lg font-bold" : "px-8 py-2 rounded-lg text-slate-400";
+        function showGraph(title) {
+            document.getElementById('modal-detail').classList.remove('hidden');
+            document.getElementById('detail-title').innerText = `${title} - 24시간 실시간 모니터링`;
+            const ctx = document.getElementById('detailChart').getContext('2d');
+            
+            if(myChart) myChart.destroy();
+            
+            const hours = Array.from({length: 24}, (_, i) => i + "시");
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: hours,
+                    datasets: [
+                        { label: '절감량(kW)', data: hours.map(()=>Math.random()*10), borderColor: '#3b82f6', tension: 0.3, fill: true, backgroundColor: 'rgba(59,130,246,0.1)' },
+                        { label: '순시전력(kW)', data: hours.map(()=>Math.random()*2), borderColor: '#10b981', tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+                        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } }
+                    }
+                }
+            });
+        }
+
+        function closeDetail() { document.getElementById('modal-detail').classList.add('hidden'); }
+
+        function switchAdminTab(t) {
+            currentTab = t;
+            document.getElementById('tab-group').className = t === 'group' ? "px-8 py-2 bg-blue-600 rounded-lg font-bold" : "px-8 py-2 rounded-lg text-slate-400";
+            document.getElementById('tab-individual').className = t === 'individual' ? "px-8 py-2 bg-blue-600 rounded-lg font-bold" : "px-8 py-2 rounded-lg text-slate-400";
             renderAdminTable();
+        }
+
+        function enterGroupEdit() {
+            isEditMode = true;
+            document.getElementById('page-admin-main').classList.add('hidden');
+            document.getElementById('page-user').classList.remove('hidden');
+            document.getElementById('edit-controls').classList.remove('hidden');
+            document.getElementById('btn-login-trigger').classList.add('hidden');
+            renderLayers();
+        }
+
+        function saveAndExitEdit() {
+            isEditMode = false;
+            document.getElementById('edit-controls').classList.add('hidden');
+            document.getElementById('page-user').classList.add('hidden');
+            document.getElementById('page-admin-main').classList.remove('hidden');
+            document.getElementById('btn-login-trigger').classList.remove('hidden');
+        }
+
+        function confirmCancelEdit() {
+            if(confirm("저장하지 않고 편집을 종료하시겠습니까?")) saveAndExitEdit();
         }
 
         function changePage(dir) { curPage += dir; updatePage(); }
