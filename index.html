@@ -2,23 +2,30 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Exsaver RTU v3.4 (Admin Entry Fixed)</title>
+    <title>Exsaver RTU v3.5 (No-Popup & Entry Fixed)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* 7인치 스크린 규격 고정 */
         body { width: 1024px; height: 600px; overflow: hidden; background-color: #020617; }
-        .blueprint-container { position: relative; width: 900px; height: 450px; background-size: 100% 100%; margin: 0 auto; border: 1px solid #1e293b; }
+        .blueprint-container { position: relative; width: 900px; height: 450px; background-size: 100% 100%; margin: 0 auto; border: 1px solid #1e293b; background-color: #000; }
+        
+        /* 화면 전환 안정화용 클래스 */
+        .page-active { display: flex !important; visibility: visible !important; opacity: 1 !important; }
+        .hidden { display: none !important; }
+
         .group-layer { position: absolute; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; border: 2px solid transparent; }
         .group-layer.status-off { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); }
         .group-layer.status-on { background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.4); }
-        .edit-mode .group-layer { border: 2px dashed #3b82f6; background: rgba(59, 130, 246, 0.2); }
+        
+        .scroll-container { height: 480px; overflow-y: auto; }
         .keypad-btn { background: #1e293b; height: 65px; font-size: 24px; border-radius: 12px; border: 1px solid #334155; width: 100%; }
-        .modal-overlay { background: rgba(0,0,0,0.9); backdrop-filter: blur(4px); position: fixed; inset: 0; z-index: 500; }
+        .modal-overlay { background: rgba(0,0,0,0.95); backdrop-filter: blur(8px); position: fixed; inset: 0; z-index: 1000; }
     </style>
 </head>
 <body class="bg-slate-950 text-white font-sans text-sm">
 
-    <div id="page-user" class="flex flex-col h-full">
+    <div id="page-user" class="page-active flex flex-col h-full">
         <header class="p-3 flex justify-between items-center bg-slate-900 border-b border-slate-800">
             <h1 class="text-lg font-black text-blue-500 italic">RTU MONITOR</h1>
             <div class="flex items-center gap-5">
@@ -31,9 +38,32 @@
 
         <main class="flex-1 flex flex-col justify-center relative p-4">
             <div id="blueprint" class="blueprint-container shadow-2xl"></div>
-            <button class="absolute left-4 p-5 bg-slate-800/40 rounded-full" onclick="changePage(-1)">←</button>
-            <button class="absolute right-4 p-5 bg-slate-800/40 rounded-full" onclick="changePage(1)">→</button>
+            <button class="absolute left-4 p-5 bg-slate-800/40 rounded-full hover:bg-blue-600" onclick="changePage(-1)">←</button>
+            <button class="absolute right-4 p-5 bg-slate-800/40 rounded-full hover:bg-blue-600" onclick="changePage(1)">→</button>
         </main>
+    </div>
+
+    <div id="page-admin-main" class="hidden flex-col h-full bg-slate-950 w-full">
+        <nav class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center shadow-md">
+            <div class="flex gap-2 bg-slate-800 p-1 rounded-xl">
+                <button id="tab-individual" onclick="switchAdminTab('individual')" class="px-5 py-2 bg-blue-600 rounded-lg font-bold text-xs transition">개인별</button>
+                <button id="tab-group" onclick="switchAdminTab('group')" class="px-5 py-2 rounded-lg text-slate-400 text-xs transition">그룹별</button>
+                <button id="tab-floor" onclick="switchAdminTab('floor')" class="px-5 py-2 rounded-lg text-slate-400 text-xs transition">층별</button>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="location.reload()" class="px-5 py-2 bg-slate-800 rounded-lg text-xs font-bold hover:bg-red-900/50">LOGOUT</button>
+            </div>
+        </nav>
+        
+        <div class="scroll-container p-4">
+            <table class="w-full text-center border-separate border-spacing-y-2">
+                <thead id="admin-table-head" class="sticky top-0 bg-slate-950 z-10 text-[10px] text-slate-500 uppercase">
+                    <tr><th>장비 명칭</th><th>절감량(kW)</th><th>누적량(kWh)</th><th>순시전력(kW)</th><th>상태</th></tr>
+                </thead>
+                <tbody id="admin-table-body">
+                    </tbody>
+            </table>
+        </div>
     </div>
 
     <div id="page-login" class="hidden modal-overlay flex items-center justify-center">
@@ -44,7 +74,7 @@
                 <script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="keypad-btn active:bg-blue-600">${i}</button>`);</script>
                 <button onclick="clearPin()" class="keypad-btn text-red-500 font-bold">C</button>
                 <button onclick="pressKey('0')" class="keypad-btn">0</button>
-                <button onclick="hideLogin()" class="keypad-btn text-slate-500 text-sm font-bold uppercase">Back</button>
+                <button onclick="hideLogin()" class="keypad-btn text-slate-500 text-xs font-bold uppercase tracking-tighter">Back</button>
             </div>
         </div>
     </div>
@@ -52,32 +82,21 @@
     <script>
         let layoutData = JSON.parse(localStorage.getItem('rtu_group_layout')) || {
             1: [ {t:20, l:15, w:250, h:150, name: "1층 사무구역", lcuIds: [1,2,3], status: 'OFF'} ],
-            2: [ {t:30, l:30, w:250, h:150, name: "2층 연구동", lcuIds: [6,7], status: 'OFF'} ],
-            3: [ {t:50, l:40, w:200, h:120, name: "3층 회의실", lcuIds: [11], status: 'OFF'} ]
+            2: [ {t:30, l:30, w:250, h:150, name: "2층 연구실", lcuIds: [6,7,8], status: 'OFF'} ],
+            3: [ {t:50, l:40, w:200, h:120, name: "3층 임원실", lcuIds: [11], status: 'OFF'} ]
         };
 
-        let curPage = 1, pin = "", isEditMode = false;
+        let curPage = 1, pin = "";
 
-        // --- 로그인 진입 제어 (이 부분이 버그 해결의 핵심) ---
-        function showLogin() {
-            pin = ""; // 초기화
-            document.getElementById('pin-display').innerText = "";
-            document.getElementById('page-login').classList.remove('hidden');
-            // 사용자 모드 배경을 유지하거나 숨길 수 있습니다. (여기서는 모달로 띄움)
-        }
-
-        function hideLogin() {
-            document.getElementById('page-login').classList.add('hidden');
-        }
-
+        // PIN 입력 로직
         function pressKey(num) {
             if(pin.length < 4) {
                 pin += num;
                 document.getElementById('pin-display').innerText = '●'.repeat(pin.length);
             }
             if(pin.length === 4) {
-                if(pin === "0000") { // 비밀번호 확인
-                    enterAdminMode();
+                if(pin === "0000") {
+                    enterAdminMode(); // 성공 시 즉시 이동
                 } else {
                     alert("비밀번호가 틀렸습니다.");
                     clearPin();
@@ -85,21 +104,35 @@
             }
         }
 
-        function clearPin() {
-            pin = "";
-            document.getElementById('pin-display').innerText = "";
-        }
+        function clearPin() { pin = ""; document.getElementById('pin-display').innerText = ""; }
 
+        // [패치] 관리자 모드 진입 (팝업 제거 및 검은 화면 방지)
         function enterAdminMode() {
+            // 1. 로그인 모달 숨기기
             document.getElementById('page-login').classList.add('hidden');
+            // 2. 사용자 모드 숨기기
             document.getElementById('page-user').classList.add('hidden');
-            // 여기에 관리자 메인 페이지를 보여주는 로직 추가
-            alert("관리자 모드로 진입합니다.");
-            // location.href = 'admin_main.html'; // 실제 구현시 페이지 이동 또는 아래처럼 처리
-            // document.getElementById('page-admin-main').classList.remove('hidden');
+            document.getElementById('page-user').classList.remove('page-active');
+            
+            // 3. 관리자 메인 활성화 (클래스 강제 부여)
+            const adminMain = document.getElementById('page-admin-main');
+            adminMain.classList.remove('hidden');
+            adminMain.classList.add('page-active');
+            
+            // 4. 데이터 테이블 초기 렌더링
+            renderAdminTable();
         }
 
-        // --- 도면 및 그룹 렌더링 ---
+        function showLogin() {
+            clearPin();
+            document.getElementById('page-login').classList.remove('hidden');
+        }
+
+        function hideLogin() {
+            document.getElementById('page-login').classList.add('hidden');
+        }
+
+        // 도면 및 레이어 렌더링
         function updatePage() {
             const container = document.getElementById('blueprint');
             container.style.backgroundImage = `url('rtu_ui${curPage === 1 ? '' : curPage}.jpg')`;
@@ -111,18 +144,18 @@
             container.innerHTML = '';
             const groups = layoutData[curPage] || [];
 
-            groups.forEach((group, idx) => {
+            groups.forEach((group) => {
                 const layer = document.createElement('div');
                 layer.className = `group-layer ${group.status === 'ON' ? 'status-on' : 'status-off'}`;
                 layer.style.cssText = `top:${group.t}%; left:${group.l}%; width:${group.w}px; height:${group.h}px;`;
-                
-                layer.innerHTML = `<div class="bg-black/60 px-2 py-1 rounded text-xs font-bold">${group.name}</div>`;
+                layer.innerHTML = `<div class="bg-black/70 px-3 py-1 rounded-lg text-xs font-bold border border-white/20">${group.name}</div>`;
                 
                 layer.onclick = () => {
                     if(group.status === 'OFF') {
-                        if(confirm(`[${group.name}] 구역을 복구하시겠습니까?`)) {
+                        if(confirm(`[${group.name}] 구역의 전원을 복구하시겠습니까?`)) {
                             group.status = 'ON';
-                            save(); renderGroupLayers();
+                            localStorage.setItem('rtu_group_layout', JSON.stringify(layoutData));
+                            renderGroupLayers();
                         }
                     }
                 };
@@ -130,12 +163,31 @@
             });
         }
 
-        function save() { localStorage.setItem('rtu_group_layout', JSON.stringify(layoutData)); }
-        function changePage(d) { curPage = Math.max(1, Math.min(3, curPage + d)); updatePage(); }
-        
+        function renderAdminTable() {
+            const body = document.getElementById('admin-table-body');
+            body.innerHTML = '';
+            // 시뮬레이션용 데이터 생성
+            for(let i=1; i<=10; i++) {
+                const tr = document.createElement('tr');
+                tr.className = "bg-slate-900 border border-slate-800 hover:bg-slate-800 transition";
+                tr.innerHTML = `
+                    <td class="p-4 font-bold text-blue-400">LCU-Device-${i.toString().padStart(2,'0')}</td>
+                    <td class="font-mono text-xs text-slate-300">2.${i}</td>
+                    <td class="font-mono text-xs text-slate-300">14${i}.5</td>
+                    <td class="font-mono text-xs text-green-400">0.4${i}</td>
+                    <td><span class="px-3 py-1 bg-green-900/50 text-green-400 rounded-full text-[10px] font-bold border border-green-700/50">ON</span></td>
+                `;
+                body.appendChild(tr);
+            }
+        }
+
+        function changePage(d) {
+            curPage = Math.max(1, Math.min(3, curPage + d));
+            updatePage();
+        }
+
         setInterval(() => {
-            const clock = document.getElementById('top-clock');
-            if(clock) clock.innerText = new Date().toLocaleTimeString();
+            document.getElementById('top-clock').innerText = new Date().toLocaleTimeString();
         }, 1000);
 
         window.onload = updatePage;
