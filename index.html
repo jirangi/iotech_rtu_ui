@@ -2,90 +2,119 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Exsaver RTU v3.1 (7-inch Optimized)</title>
+    <title>Exsaver RTU v3.2 (Full Admin Features)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* 7인치 디스플레이(약 1024x600) 최적화 */
         body { width: 1024px; height: 600px; overflow: hidden; background-color: #020617; }
-        .scroll-container { height: 480px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #334155 #0f172a; }
+        .scroll-container { height: 460px; overflow-y: auto; scrollbar-width: thin; }
         .blueprint-container { position: relative; width: 900px; height: 450px; background-size: 100% 100%; margin: 0 auto; border: 1px solid #1e293b; }
         .lcu-layer { position: absolute; display: flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; cursor: pointer; }
-        .edit-mode .lcu-layer { border: 1px dashed #3b82f6; background: rgba(59, 130, 246, 0.1); }
-        .lcu-status-dot { width: 28px; height: 28px; border-radius: 50%; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 10px; transition: 0.3s; }
-        .status-on { background-color: #22c55e; box-shadow: 0 0 8px #22c55e; }
-        .status-off { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
-        .modal-overlay { background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); }
+        .edit-mode .lcu-layer { border: 2px dashed #3b82f6; background: rgba(59, 130, 246, 0.1); cursor: move; }
+        .lcu-layer.selected { border: 2px solid #fbbf24 !important; background: rgba(251, 191, 36, 0.2) !important; }
+        .resizer { display: none; width: 10px; height: 10px; background: #3b82f6; position: absolute; border-radius: 50%; }
+        .edit-mode .resizer { display: block; }
+        .resizer.tl { top: -5px; left: -5px; cursor: nw-resize; } .resizer.br { bottom: -5px; right: -5px; cursor: se-resize; }
+        .lcu-status-dot { width: 30px; height: 30px; border-radius: 50%; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 10px; transition: 0.3s; }
+        .status-on { background-color: #22c55e; box-shadow: 0 0 10px #22c55e; }
+        .status-off { background-color: #ef4444; box-shadow: 0 0 10px #ef4444; }
+        .modal-bg { background: rgba(0,0,0,0.9); backdrop-filter: blur(4px); }
     </style>
 </head>
-<body class="text-white font-sans text-sm">
+<body class="text-white font-sans text-sm selection:bg-blue-500">
 
     <div id="page-user" class="flex flex-col h-full">
-        <header class="p-3 flex justify-between items-center bg-slate-900 border-b border-slate-800">
-            <h1 class="text-lg font-bold text-blue-500 italic">RTU MONITOR</h1>
-            <div class="flex items-center gap-4">
+        <header class="p-3 flex justify-between items-center bg-slate-900 border-b border-slate-800 shadow-lg">
+            <h1 id="header-title" class="text-lg font-black text-blue-500 italic uppercase">RTU Monitoring System</h1>
+            <div class="flex items-center gap-5">
                 <div id="top-clock" class="font-mono text-slate-400">00:00:00</div>
-                <button onclick="showLogin()" class="px-3 py-1 bg-slate-800 rounded border border-slate-700 text-xs">🔒 관리자</button>
+                <button id="btn-lock" onclick="showLogin()" class="px-4 py-1.5 bg-slate-800 rounded-lg border border-slate-700 text-xs">🔒 ADMIN LOGIN</button>
             </div>
         </header>
-        <main class="flex-1 flex flex-col justify-center relative">
+        <main class="flex-1 flex flex-col justify-center relative bg-slate-950">
             <div id="blueprint" class="blueprint-container"></div>
-            <button class="absolute left-2 p-4 bg-slate-800/50 rounded-full" onclick="changePage(-1)">←</button>
-            <button class="absolute right-2 p-4 bg-slate-800/50 rounded-full" onclick="changePage(1)">→</button>
+            <button class="absolute left-4 p-5 bg-slate-800/40 rounded-full hover:bg-blue-600 transition" onclick="changePage(-1)">←</button>
+            <button class="absolute right-4 p-5 bg-slate-800/40 rounded-full hover:bg-blue-600 transition" onclick="changePage(1)">→</button>
+            
+            <div id="edit-controls" class="hidden absolute bottom-6 flex gap-3 bg-slate-900/95 p-4 rounded-2xl border border-blue-900/50 shadow-2xl">
+                <button onclick="addLayer()" class="px-6 py-2.5 bg-emerald-600 rounded-xl font-bold hover:bg-emerald-500">+ LCU 추가</button>
+                <button id="btn-delete" onclick="deleteSelected()" disabled class="px-6 py-2.5 bg-red-600 rounded-xl font-bold opacity-30">삭제</button>
+                <div class="w-px h-8 bg-slate-700 mx-2"></div>
+                <button onclick="saveEdit()" class="px-8 py-2.5 bg-blue-600 rounded-xl font-bold shadow-lg">편집 완료 및 저장</button>
+            </div>
         </main>
     </div>
 
     <div id="page-admin-main" class="hidden flex flex-col h-full bg-slate-950">
-        <nav class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
-            <div class="flex gap-2">
-                <button id="tab-individual" onclick="switchAdminTab('individual')" class="px-4 py-1.5 bg-blue-600 rounded font-bold text-xs">개인별</button>
-                <button id="tab-group" onclick="switchAdminTab('group')" class="px-4 py-1.5 bg-slate-800 rounded text-xs">그룹별</button>
+        <nav class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center shadow-md">
+            <div class="flex gap-1.5 bg-slate-800 p-1 rounded-xl">
+                <button id="tab-individual" onclick="switchTab('individual')" class="px-5 py-2 bg-blue-600 rounded-lg font-bold text-xs transition">개인별</button>
+                <button id="tab-group" onclick="switchTab('group')" class="px-5 py-2 rounded-lg text-slate-400 text-xs transition">그룹별</button>
+                <button id="tab-floor" onclick="switchTab('floor')" class="px-5 py-2 rounded-lg text-slate-400 text-xs transition">층별 관리</button>
             </div>
-            <div class="flex gap-2">
-                <button onclick="enterGroupEdit()" class="px-3 py-1.5 bg-amber-600 rounded font-bold text-xs">도면 편집</button>
-                <button onclick="location.reload()" class="px-3 py-1.5 bg-slate-800 rounded text-xs">로그아웃</button>
+            <div class="flex gap-3">
+                <button onclick="enterGroupEdit()" class="px-5 py-2 bg-amber-600 rounded-lg font-bold text-xs">도면 편집</button>
+                <button onclick="location.reload()" class="px-5 py-2 bg-slate-800 rounded-lg text-xs">로그아웃</button>
             </div>
         </nav>
-        
         <div class="scroll-container p-4">
             <table class="w-full text-center border-separate border-spacing-y-2">
-                <thead id="admin-table-head" class="sticky top-0 bg-slate-950 z-10"></thead>
+                <thead id="admin-table-head" class="sticky top-0 bg-slate-950 z-10 text-[10px] text-slate-500 uppercase"></thead>
                 <tbody id="admin-table-body"></tbody>
             </table>
         </div>
     </div>
 
-    <div id="modal-detail" class="hidden fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4">
-        <div class="bg-slate-900 w-[900px] h-[500px] rounded-xl border border-slate-700 p-6 relative shadow-2xl">
-            <button onclick="closeDetail()" class="absolute top-4 right-6 text-2xl text-slate-500 hover:text-white">✕</button>
-            <h3 id="detail-title" class="text-xl font-bold mb-4 text-blue-400">데이터 분석</h3>
+    <div id="modal-confirm" class="hidden fixed inset-0 z-[300] modal-bg flex items-center justify-center">
+        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-600 w-[400px] text-center shadow-2xl">
+            <p id="confirm-msg" class="text-lg mb-8 font-medium"></p>
+            <div class="flex gap-3">
+                <button onclick="closeConfirm()" class="flex-1 py-3 bg-slate-700 rounded-xl font-bold">취소</button>
+                <button id="confirm-ok" class="flex-1 py-3 bg-blue-600 rounded-xl font-bold">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-assign" class="hidden fixed inset-0 z-[250] modal-bg flex items-center justify-center">
+        <div class="bg-slate-800 w-[500px] rounded-3xl border border-slate-700 p-8 shadow-2xl">
+            <h3 id="assign-title" class="text-xl font-bold mb-6 text-amber-400">그룹 장비 구성</h3>
+            <div id="assign-list" class="grid grid-cols-4 gap-3 mb-8 max-h-60 overflow-y-auto p-2"></div>
+            <button onclick="closeAssign()" class="w-full py-4 bg-blue-600 rounded-2xl font-bold">설정 완료</button>
+        </div>
+    </div>
+
+    <div id="modal-detail" class="hidden fixed inset-0 z-[150] modal-bg flex items-center justify-center p-6">
+        <div class="bg-slate-900 w-[950px] h-[520px] rounded-3xl border border-slate-700 p-8 relative shadow-2xl">
+            <button onclick="closeDetail()" class="absolute top-6 right-8 text-3xl text-slate-500">✕</button>
+            <h3 id="detail-title" class="text-2xl font-bold mb-6 text-blue-400 italic"></h3>
             <div class="h-[380px] w-full"><canvas id="detailChart"></canvas></div>
         </div>
     </div>
 
-    <div id="page-login" class="hidden fixed inset-0 z-[200] modal-overlay flex items-center justify-center">
-        <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700 w-[300px] text-center">
-            <h2 class="text-sm font-bold mb-4 text-slate-400">관리자 인증</h2>
-            <div id="pin-display" class="bg-black p-3 mb-4 rounded-xl text-2xl h-12 flex items-center justify-center tracking-widest"></div>
+    <div id="page-login" class="hidden fixed inset-0 z-[400] modal-bg flex items-center justify-center">
+        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[320px] text-center shadow-2xl">
+            <h2 class="text-sm font-bold mb-6 text-slate-500 tracking-widest">관리자 인증</h2>
+            <div id="pin-display" class="bg-black p-4 mb-6 rounded-2xl text-3xl h-14 flex items-center justify-center font-mono tracking-[0.5em]"></div>
             <div class="grid grid-cols-3 gap-2">
-                <script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="w-full py-3 bg-slate-800 rounded-lg text-xl active:bg-blue-600">${i}</button>`);</script>
-                <button onclick="clearPin()" class="py-3 bg-red-900/50 text-red-500 rounded-lg">C</button>
-                <button onclick="pressKey('0')" class="py-3 bg-slate-800 rounded-lg text-xl">0</button>
-                <button onclick="hideLogin()" class="py-3 bg-slate-700 rounded-lg text-xs">Back</button>
+                <script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="py-4 bg-slate-800 rounded-xl text-xl active:bg-blue-600">${i}</button>`);</script>
+                <button onclick="clearPin()" class="py-4 bg-red-900/30 text-red-500 rounded-xl font-bold text-lg">C</button>
+                <button onclick="pressKey('0')" class="py-4 bg-slate-800 rounded-xl text-xl">0</button>
+                <button onclick="hideLogin()" class="py-4 bg-slate-700 rounded-xl text-xs">Back</button>
             </div>
         </div>
     </div>
 
     <script>
-        // 초기 데이터 (이름 변경: 1층 사무실)
-        const initialPageData = {
-            1: { name: "1층 사무실", lcus: [ {t:20, l:15, w:80, h:60, id:1, status:'OFF'}, {t:20, l:35, w:80, h:60, id:2, status:'OFF'}, {t:20, l:55, w:80, h:60, id:3, status:'OFF'} ] },
-            2: { name: "2층 연구실", lcus: [ {t:40, l:20, w:80, h:60, id:6, status:'OFF'}, {t:40, l:45, w:80, h:60, id:7, status:'OFF'} ] },
-            3: { name: "3층 회의실", lcus: [ {t:60, l:40, w:80, h:60, id:11, status:'OFF'} ] }
+        // 데이터 구조 정의 (도면별 독립 관리) [cite: 6, 15, 149]
+        const defaultData = {
+            1: { name: "1층 사무실", lcus: [ {t:15, l:10, w:100, h:80, id:1, status:'OFF'}, {t:15, l:25, w:100, h:80, id:2, status:'OFF'}, {t:15, l:40, w:100, h:80, id:3, status:'OFF'}, {t:15, l:55, w:100, h:80, id:4, status:'OFF'}, {t:15, l:70, w:100, h:80, id:5, status:'OFF'} ] },
+            2: { name: "2층 연구동", lcus: [ {t:40, l:15, w:100, h:80, id:6, status:'OFF'}, {t:40, l:30, w:100, h:80, id:7, status:'OFF'}, {t:40, l:45, w:100, h:80, id:8, status:'OFF'} ] },
+            3: { name: "3층 임원실", lcus: [ {t:60, l:40, w:100, h:80, id:11, status:'OFF'}, {t:60, l:55, w:100, h:80, id:12, status:'OFF'} ] }
         };
 
-        let pageData = JSON.parse(localStorage.getItem('rtu_v31_data')) || initialPageData;
-        let curPage = 1, pin = "", isEditMode = false, currentTab = 'individual', myChart = null;
+        let pageData = JSON.parse(localStorage.getItem('rtu_v32_final')) || defaultData;
+        let groups = JSON.parse(localStorage.getItem('rtu_groups')) || { "Group A": [1,2,3], "Group B": [6,7] };
+        let curPage = 1, pin = "", isEditMode = false, currentTab = 'individual', selectedIdx = null, myChart = null;
 
         function updatePage() {
             const container = document.getElementById('blueprint');
@@ -96,11 +125,10 @@
         function renderLayers() {
             const container = document.getElementById('blueprint');
             container.innerHTML = '';
-            const current = pageData[curPage] || { name: `도면 ${curPage}`, lcus: [] };
-            
+            const current = pageData[curPage] || { lcus: [] };
             current.lcus.forEach((lcu, idx) => {
                 const rect = document.createElement('div');
-                rect.className = `lcu-layer ${isEditMode ? 'edit-mode' : ''}`;
+                rect.className = `lcu-layer ${isEditMode ? 'edit-mode' : ''} ${isEditMode && selectedIdx === idx ? 'selected' : ''}`;
                 rect.style.cssText = `top:${lcu.t}%; left:${lcu.l}%; width:${lcu.w}px; height:${lcu.h}px;`;
 
                 const dot = document.createElement('div');
@@ -108,107 +136,166 @@
                 dot.innerText = lcu.id.toString().padStart(2, '0');
                 rect.appendChild(dot);
 
-                rect.onclick = () => { if(!isEditMode && lcu.status === 'OFF') toggleLcu(curPage, idx); };
+                if(isEditMode) {
+                    ['tl','br'].forEach(p => {
+                        const r = document.createElement('div'); r.className = `resizer ${p}`;
+                        r.onmousedown = (e) => initResize(e, p, idx); rect.appendChild(r);
+                    });
+                    rect.onmousedown = (e) => { if(!e.target.classList.contains('resizer')) { selectedIdx = idx; document.getElementById('btn-delete').disabled = false; renderLayers(); initDrag(e, idx); } };
+                } else {
+                    rect.onclick = () => { if(lcu.status === 'OFF') askStatusChange(curPage, idx, 'ON'); };
+                }
                 container.appendChild(rect);
             });
         }
 
-        // 제어 로직 (개별/그룹)
-        function toggleLcu(pg, idx) {
+        // --- 기능 1: 상태 변경 확인 팝업 기능 ---
+        function askStatusChange(pg, idx, target) {
             const lcu = pageData[pg].lcus[idx];
-            lcu.status = lcu.status === 'ON' ? 'OFF' : 'ON';
-            save(); renderLayers(); if(!isEditMode) renderAdminTable();
+            document.getElementById('modal-confirm').classList.remove('hidden');
+            document.getElementById('confirm-msg').innerHTML = `<span class="text-blue-400 font-bold">${lcu.id}번 장비</span>의 상태를 <br/><span class="${target==='ON'?'text-green-500':'text-red-500'} font-black text-2xl">${target}</span>(으)로 변경하시겠습니까?`;
+            document.getElementById('confirm-ok').onclick = () => {
+                lcu.status = target; save(); renderLayers(); closeConfirm();
+                if(document.getElementById('page-admin-main').offsetParent) renderAdminTable();
+            };
+        }
+        function closeConfirm() { document.getElementById('modal-confirm').classList.add('hidden'); }
+
+        // --- 기능 2: 도면 편집 모드 진입/해제 ---
+        function enterGroupEdit() {
+            isEditMode = true;
+            document.getElementById('page-admin-main').classList.add('hidden');
+            document.getElementById('page-user').classList.remove('hidden');
+            document.getElementById('edit-controls').classList.remove('hidden');
+            document.getElementById('header-title').innerText = "Layout Edit Mode - " + pageData[curPage].name;
+            renderLayers();
+        }
+        function saveEdit() {
+            isEditMode = false; selectedIdx = null;
+            document.getElementById('edit-controls').classList.add('hidden');
+            document.getElementById('page-user').classList.add('hidden');
+            document.getElementById('page-admin-main').classList.remove('hidden');
+            document.getElementById('header-title').innerText = "RTU Monitoring System";
+            save(); renderAdminTable();
         }
 
-        function groupControl(pg, targetStatus) {
-            if(!confirm(`그룹 내 모든 LCU를 ${targetStatus} 하시겠습니까?`)) return;
-            pageData[pg].lcus.forEach(l => l.status = targetStatus);
-            save(); renderLayers(); renderAdminTable();
+        // --- 기능 3: 그룹 관리 및 장비 할당 ---
+        function openAssign(groupName) {
+            document.getElementById('modal-assign').classList.remove('hidden');
+            document.getElementById('assign-title').innerText = `[${groupName}] 장비 할당`;
+            const listDiv = document.getElementById('assign-list');
+            listDiv.innerHTML = '';
+            
+            // 모든 층의 LCU 리스트업
+            Object.keys(pageData).forEach(pg => {
+                pageData[pg].lcus.forEach(lcu => {
+                    const isChecked = groups[groupName]?.includes(lcu.id);
+                    const btn = document.createElement('button');
+                    btn.className = `p-3 rounded-xl border ${isChecked ? 'bg-amber-600 border-amber-400 font-bold' : 'bg-slate-700 border-slate-600 text-slate-400'} text-xs transition`;
+                    btn.innerText = `LCU ${lcu.id}`;
+                    btn.onclick = () => {
+                        if(!groups[groupName]) groups[groupName] = [];
+                        if(groups[groupName].includes(lcu.id)) groups[groupName] = groups[groupName].filter(id => id !== lcu.id);
+                        else groups[groupName].push(lcu.id);
+                        localStorage.setItem('rtu_groups', JSON.stringify(groups));
+                        openAssign(groupName); // UI 갱신
+                    };
+                    listDiv.appendChild(btn);
+                });
+            });
         }
+        function closeAssign() { document.getElementById('modal-assign').classList.add('hidden'); renderAdminTable(); }
 
-        // 관리자 테이블 (스크롤 가능)
+        // --- 기능 4: 층별/그룹별 통계 및 테이블 렌더링 ---
         function renderAdminTable() {
             const head = document.getElementById('admin-table-head');
             const body = document.getElementById('admin-table-body');
             body.innerHTML = '';
 
             if(currentTab === 'individual') {
-                head.innerHTML = '<tr class="text-slate-500 text-[10px] uppercase"><th>명칭</th><th>절감량</th><th>누적량</th><th>현재상태</th></tr>';
+                head.innerHTML = '<tr><th>장비 명칭</th><th>대기절감</th><th>누적전력</th><th>순시전력</th><th>상태제어</th></tr>';
                 Object.keys(pageData).forEach(pg => {
                     pageData[pg].lcus.forEach((lcu, idx) => {
                         const tr = document.createElement('tr');
                         tr.className = "bg-slate-900 border border-slate-800 hover:bg-slate-800 transition cursor-pointer";
                         tr.innerHTML = `
                             <td class="p-3 text-blue-400 font-bold" onclick="showGraph('LCU ${lcu.id}')">${pageData[pg].name}-0${lcu.id}</td>
-                            <td class="text-xs font-mono">${(Math.random()*2).toFixed(1)}kW</td>
-                            <td class="text-xs font-mono">${(Math.random()*50).toFixed(1)}kWh</td>
-                            <td><button onclick="toggleLcu(${pg}, ${idx})" class="px-3 py-1 rounded-full text-[10px] font-bold ${lcu.status === 'ON' ? 'bg-green-600' : 'bg-red-600'}">${lcu.status}</button></td>
+                            <td class="text-xs">${(Math.random()*3).toFixed(1)}kW</td><td class="text-xs">${(Math.random()*80).toFixed(1)}kWh</td><td class="text-green-500 font-mono">${(Math.random()*1).toFixed(2)}</td>
+                            <td><button onclick="askStatusChange(${pg}, ${idx}, '${lcu.status==='ON'?'OFF':'ON'}')" class="px-5 py-1.5 rounded-full text-[10px] font-black ${lcu.status==='ON'?'bg-green-600 shadow-[0_0_8px_#16a34a]':'bg-red-600'}">${lcu.status}</button></td>
                         `;
                         body.appendChild(tr);
                     });
                 });
-            } else {
-                head.innerHTML = '<tr class="text-slate-500 text-[10px] uppercase"><th>그룹명(구역)</th><th>평균절감</th><th>일괄 제어</th></tr>';
-                Object.keys(pageData).forEach(pg => {
-                    const group = pageData[pg];
-                    const tr = document.createElement('tr');
-                    tr.className = "bg-slate-900 border border-slate-800 p-2";
+            } else if(currentTab === 'group') {
+                head.innerHTML = '<tr><th>그룹 명칭 (클릭:장비할당)</th><th>평균 절감</th><th>총 누적량</th><th>일괄 제어</th></tr>';
+                Object.keys(groups).forEach(gName => {
+                    const tr = document.createElement('tr'); tr.className = "bg-slate-900 border border-slate-800 hover:border-amber-500 transition";
                     tr.innerHTML = `
-                        <td class="p-4 text-left pl-6 font-bold text-amber-400" onclick="showGraph('${group.name}')">${group.name}</td>
-                        <td class="text-xs font-mono">${(Math.random()*5).toFixed(1)}kW</td>
+                        <td class="p-4 text-left pl-6 font-bold text-amber-400" onclick="openAssign('${gName}')">📁 ${gName} <span class="text-[9px] text-slate-500 ml-2">(${groups[gName].length}개)</span></td>
+                        <td class="font-mono text-xs">${(Math.random()*15).toFixed(1)}kW</td><td class="font-mono text-xs">${(Math.random()*500).toFixed(1)}kWh</td>
                         <td class="flex justify-center gap-2 p-3">
-                            <button onclick="groupControl(${pg}, 'ON')" class="px-4 py-1.5 bg-green-700 rounded text-[10px] font-bold">ALL ON</button>
-                            <button onclick="groupControl(${pg}, 'OFF')" class="px-4 py-1.5 bg-red-700 rounded text-[10px] font-bold">ALL OFF</button>
+                            <button onclick="groupBatchControl('${gName}', 'ON')" class="px-4 py-2 bg-emerald-700 rounded-lg text-[10px] font-bold">ALL ON</button>
+                            <button onclick="groupBatchControl('${gName}', 'OFF')" class="px-4 py-2 bg-rose-700 rounded-lg text-[10px] font-bold">ALL OFF</button>
                         </td>
                     `;
                     body.appendChild(tr);
                 });
-                // [그룹 추가 버튼] 테이블 하단에 배치
-                const addTr = document.createElement('tr');
-                addTr.innerHTML = `<td colspan="3" class="p-4"><button onclick="addGroup()" class="w-full py-2 border border-dashed border-slate-700 text-slate-500 rounded">+ 새 그룹 추가</button></td>`;
-                body.appendChild(addTr);
+                body.innerHTML += `<tr><td colspan="4" class="p-4"><button onclick="addGroup()" class="w-full py-3 bg-slate-800 border border-dashed border-slate-600 rounded-xl text-slate-500">+ 신규 그룹 생성</button></td></tr>`;
+            } else {
+                head.innerHTML = '<tr><th>층별 명칭</th><th>층 전체 절감량</th><th>층 전체 전력량</th><th>층 통합 제어</th></tr>';
+                Object.keys(pageData).forEach(pg => {
+                    const tr = document.createElement('tr'); tr.className = "bg-slate-900 border border-slate-800";
+                    tr.innerHTML = `
+                        <td class="p-4 text-left pl-6 font-black text-blue-300">🏢 ${pageData[pg].name}</td>
+                        <td class="font-mono text-xs">${(Math.random()*30).toFixed(1)}kW</td><td class="font-mono text-xs">${(Math.random()*1000).toFixed(1)}kWh</td>
+                        <td class="flex justify-center gap-2 p-3">
+                            <button onclick="floorBatchControl(${pg}, 'ON')" class="px-6 py-2 bg-blue-700 rounded-lg text-[10px] font-bold">전체 복귀(ON)</button>
+                            <button onclick="floorBatchControl(${pg}, 'OFF')" class="px-6 py-2 bg-slate-700 rounded-lg text-[10px] font-bold">전체 차단(OFF)</button>
+                        </td>
+                    `;
+                    body.appendChild(tr);
+                });
             }
         }
 
-        function addGroup() {
-            const name = prompt("새 그룹 명칭을 입력하세요:", "Group " + (Object.keys(pageData).length + 1));
-            if(name) {
-                const newPg = Object.keys(pageData).length + 1;
-                pageData[newPg] = { name: name, lcus: [] };
-                save(); renderAdminTable();
-            }
+        // 일괄 제어 로직 [cite: 14, 39, 40]
+        function groupBatchControl(gName, target) {
+            if(!confirm(`[${gName}] 내 모든 장비를 ${target} 하시겠습니까?`)) return;
+            const targetIds = groups[gName];
+            Object.keys(pageData).forEach(pg => {
+                pageData[pg].lcus.forEach(l => { if(targetIds.includes(l.id)) l.status = target; });
+            });
+            save(); renderLayers(); renderAdminTable();
         }
+        function floorBatchControl(pg, target) {
+            if(!confirm(`${pageData[pg].name}의 모든 장비를 ${target} 하시겠습니까?`)) return;
+            pageData[pg].lcus.forEach(l => l.status = target);
+            save(); renderLayers(); renderAdminTable();
+        }
+        function addGroup() { const n = prompt("새 그룹 명칭:"); if(n) { groups[n] = []; localStorage.setItem('rtu_groups', JSON.stringify(groups)); renderAdminTable(); } }
 
-        // 그래프 (맨 오른쪽이 현재 시간)
+        // --- 유틸리티 및 초기화 ---
+        function switchTab(t) { currentTab = t; document.querySelectorAll('nav button[id^="tab-"]').forEach(b => b.className = "px-5 py-2 rounded-lg text-slate-400 text-xs transition"); document.getElementById('tab-'+t).className = "px-5 py-2 bg-blue-600 rounded-lg font-bold text-xs transition"; renderAdminTable(); }
+        function save() { localStorage.setItem('rtu_v32_final', JSON.stringify(pageData)); }
+        function showLogin() { pin = ""; document.getElementById('pin-display').innerText = ""; document.getElementById('page-login').classList.remove('hidden'); }
+        function hideLogin() { document.getElementById('page-login').classList.add('hidden'); }
+        function pressKey(n) { if(pin.length<4) { pin+=n; document.getElementById('pin-display').innerText='●'.repeat(pin.length); } if(pin.length===4) { if(pin==="0000") { document.getElementById('page-login').classList.add('hidden'); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); switchTab('individual'); } else { alert("PIN 오류"); pin=""; document.getElementById('pin-display').innerText=""; } } }
+        function clearPin() { pin = ""; document.getElementById('pin-display').innerText = ""; }
+        function changePage(d) { curPage = Math.max(1, Math.min(3, curPage + d)); updatePage(); }
         function showGraph(title) {
             document.getElementById('modal-detail').classList.remove('hidden');
-            document.getElementById('detail-title').innerText = title + " 분석";
+            document.getElementById('detail-title').innerText = title;
             const ctx = document.getElementById('detailChart').getContext('2d');
             if(myChart) myChart.destroy();
             const now = new Date().getHours();
             const labels = Array.from({length: 24}, (_, i) => ((now-23+i+24)%24) + "시");
-            myChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { label: '순시전력', data: labels.map(()=>Math.random()*1.5), borderColor: '#10b981', tension: 0.4 },
-                        { label: '절감량', data: labels.map(()=>Math.random()*10), borderColor: '#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension: 0.4 }
-                    ]
-                },
-                options: { responsive: true, maintainAspectRatio: false, color: '#94a3b8' }
-            });
+            myChart = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label: '순시전력(kW)', data: labels.map(()=>Math.random()*1.2), borderColor: '#10b981', tension: 0.4 }, { label: '절감량(kW)', data: labels.map(()=>Math.random()*8), borderColor: '#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', fill:true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, color: '#94a3b8' } });
         }
-
-        // 공통 유틸리티
-        function save() { localStorage.setItem('rtu_v31_data', JSON.stringify(pageData)); }
-        function showLogin() { pin = ""; document.getElementById('pin-display').innerText = ""; document.getElementById('page-login').classList.remove('hidden'); }
-        function hideLogin() { document.getElementById('page-login').classList.add('hidden'); }
-        function pressKey(n) { if(pin.length<4) { pin+=n; document.getElementById('pin-display').innerText='●'.repeat(pin.length); } if(pin.length===4) { if(pin==="0000") { document.getElementById('page-login').classList.add('hidden'); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); switchAdminTab('individual'); } else { alert("PIN 오류"); pin=""; document.getElementById('pin-display').innerText=""; } } }
-        function clearPin() { pin = ""; document.getElementById('pin-display').innerText = ""; }
-        function switchAdminTab(t) { currentTab = t; renderAdminTable(); }
-        function changePage(d) { curPage = Math.max(1, Math.min(3, curPage + d)); updatePage(); }
         function closeDetail() { document.getElementById('modal-detail').classList.add('hidden'); }
+        function addLayer() { const id = prompt("새 LCU 번호:"); if(id) { pageData[curPage].lcus.push({t:40,l:40,w:100,h:80,id:parseInt(id),status:'OFF'}); renderLayers(); } }
+        function deleteSelected() { if(selectedIdx!==null) { pageData[curPage].lcus.splice(selectedIdx, 1); selectedIdx=null; renderLayers(); } }
+        function initDrag(e, idx) { let sX = e.clientX, sY = e.clientY; function move(e) { const dx = e.clientX-sX, dy = e.clientY-sY; const l = pageData[curPage].lcus[idx]; l.l += (dx/1000)*100; l.t += (dy/600)*100; sX=e.clientX; sY=e.clientY; renderLayers(); } window.addEventListener('mousemove', move); window.addEventListener('mouseup', () => window.removeEventListener('mousemove', move), {once:true}); }
+        function initResize(e, pos, idx) { e.stopPropagation(); let sX = e.clientX, sY = e.clientY; function rs(e) { const dx = e.clientX-sX, dy = e.clientY-sY; const l = pageData[curPage].lcus[idx]; if(pos==='br'){ l.w+=dx; l.h+=dy; } else { l.w-=dx; l.h-=dy; l.l+=(dx/1000)*100; l.t+=(dy/600)*100; } sX=e.clientX; sY=e.clientY; renderLayers(); } window.addEventListener('mousemove', rs); window.addEventListener('mouseup', () => window.removeEventListener('mousemove', rs), {once:true}); }
         setInterval(() => { document.getElementById('top-clock').innerText = new Date().toLocaleTimeString(); }, 1000);
         window.onload = updatePage;
     </script>
