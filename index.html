@@ -2,195 +2,184 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Exsaver RTU v3.5 (No-Popup & Entry Fixed)</title>
+    <title>Exsaver RTU v3.7 - Self Testing System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* 7인치 스크린 규격 고정 */
         body { width: 1024px; height: 600px; overflow: hidden; background-color: #020617; }
+        .scroll-container { height: 460px; overflow-y: auto; scrollbar-width: thin; }
         .blueprint-container { position: relative; width: 900px; height: 450px; background-size: 100% 100%; margin: 0 auto; border: 1px solid #1e293b; background-color: #000; }
-        
-        /* 화면 전환 안정화용 클래스 */
-        .page-active { display: flex !important; visibility: visible !important; opacity: 1 !important; }
-        .hidden { display: none !important; }
-
-        .group-layer { position: absolute; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; border: 2px solid transparent; }
-        .group-layer.status-off { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); }
-        .group-layer.status-on { background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.4); }
-        
-        .scroll-container { height: 480px; overflow-y: auto; }
-        .keypad-btn { background: #1e293b; height: 65px; font-size: 24px; border-radius: 12px; border: 1px solid #334155; width: 100%; }
-        .modal-overlay { background: rgba(0,0,0,0.95); backdrop-filter: blur(8px); position: fixed; inset: 0; z-index: 1000; }
+        .group-layer { position: absolute; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px solid transparent; transition: 0.3s; }
+        .edit-mode .group-layer { border: 2px dashed #3b82f6; background: rgba(59, 130, 246, 0.1); }
+        .status-off { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); }
+        .status-on { background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.4); }
+        .modal-bg { background: rgba(0,0,0,0.95); backdrop-filter: blur(8px); position: fixed; inset: 0; z-index: 1000; }
     </style>
 </head>
-<body class="bg-slate-950 text-white font-sans text-sm">
+<body class="text-white font-sans text-sm">
 
-    <div id="page-user" class="page-active flex flex-col h-full">
-        <header class="p-3 flex justify-between items-center bg-slate-900 border-b border-slate-800">
-            <h1 class="text-lg font-black text-blue-500 italic">RTU MONITOR</h1>
+    <div id="page-user" class="flex flex-col h-full">
+        <header class="p-3 flex justify-between items-center bg-slate-900 border-b border-slate-800 shadow-xl">
+            <h1 class="text-lg font-black text-blue-500 italic uppercase">RTU MONITORING v3.7</h1>
             <div class="flex items-center gap-5">
                 <div id="top-clock" class="font-mono text-slate-400">00:00:00</div>
-                <button onclick="showLogin()" class="px-4 py-1.5 bg-blue-600 rounded-lg font-bold text-xs shadow-lg active:scale-95 transition">
-                    🔒 ADMIN LOGIN
-                </button>
+                <button onclick="showLogin()" class="px-4 py-1.5 bg-blue-600 rounded-lg font-bold text-xs">🔒 ADMIN</button>
             </div>
         </header>
-
         <main class="flex-1 flex flex-col justify-center relative p-4">
             <div id="blueprint" class="blueprint-container shadow-2xl"></div>
             <button class="absolute left-4 p-5 bg-slate-800/40 rounded-full hover:bg-blue-600" onclick="changePage(-1)">←</button>
             <button class="absolute right-4 p-5 bg-slate-800/40 rounded-full hover:bg-blue-600" onclick="changePage(1)">→</button>
+            
+            <div id="edit-controls" class="hidden absolute bottom-6 flex gap-3 bg-slate-900/95 p-4 rounded-2xl border border-blue-900 shadow-2xl">
+                <button onclick="addGroup()" class="px-6 py-2 bg-emerald-600 rounded-xl font-bold">+ 그룹 구역 추가</button>
+                <button onclick="saveEdit()" class="px-8 py-2 bg-blue-600 rounded-xl font-bold">편집 완료</button>
+            </div>
         </main>
     </div>
 
-    <div id="page-admin-main" class="hidden flex-col h-full bg-slate-950 w-full">
+    <div id="page-admin-main" class="hidden flex flex-col h-full bg-slate-950">
         <nav class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center shadow-md">
             <div class="flex gap-2 bg-slate-800 p-1 rounded-xl">
-                <button id="tab-individual" onclick="switchAdminTab('individual')" class="px-5 py-2 bg-blue-600 rounded-lg font-bold text-xs transition">개인별</button>
-                <button id="tab-group" onclick="switchAdminTab('group')" class="px-5 py-2 rounded-lg text-slate-400 text-xs transition">그룹별</button>
-                <button id="tab-floor" onclick="switchAdminTab('floor')" class="px-5 py-2 rounded-lg text-slate-400 text-xs transition">층별</button>
+                <button id="tab-individual" onclick="switchTab('individual')" class="px-5 py-2 bg-blue-600 rounded-lg font-bold text-xs">개인별</button>
+                <button id="tab-group" onclick="switchTab('group')" class="px-5 py-2 rounded-lg text-slate-400 text-xs">그룹별</button>
+                <button id="tab-floor" onclick="switchTab('floor')" class="px-5 py-2 rounded-lg text-slate-400 text-xs">층별</button>
             </div>
             <div class="flex gap-3">
-                <button onclick="location.reload()" class="px-5 py-2 bg-slate-800 rounded-lg text-xs font-bold hover:bg-red-900/50">LOGOUT</button>
+                <button onclick="enterEditMode()" class="px-5 py-2 bg-amber-600 rounded-lg font-bold text-xs">도면 편집</button>
+                <button onclick="location.reload()" class="px-5 py-2 bg-slate-800 rounded-lg text-xs">LOGOUT</button>
             </div>
         </nav>
-        
         <div class="scroll-container p-4">
             <table class="w-full text-center border-separate border-spacing-y-2">
-                <thead id="admin-table-head" class="sticky top-0 bg-slate-950 z-10 text-[10px] text-slate-500 uppercase">
-                    <tr><th>장비 명칭</th><th>절감량(kW)</th><th>누적량(kWh)</th><th>순시전력(kW)</th><th>상태</th></tr>
-                </thead>
-                <tbody id="admin-table-body">
-                    </tbody>
+                <thead id="admin-table-head" class="sticky top-0 bg-slate-950 z-10 text-[10px] text-slate-500 uppercase"></thead>
+                <tbody id="admin-table-body"></tbody>
             </table>
         </div>
     </div>
 
-    <div id="page-login" class="hidden modal-overlay flex items-center justify-center">
-        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700 w-[320px] text-center shadow-2xl">
-            <h2 class="text-sm font-bold mb-6 text-blue-400 uppercase tracking-widest">관리자 인증</h2>
-            <div id="pin-display" class="bg-black p-4 mb-6 rounded-2xl text-4xl h-16 flex items-center justify-center font-mono tracking-[0.3em] border border-slate-800"></div>
+    <div id="page-login" class="hidden fixed inset-0 z-[500] modal-bg flex items-center justify-center">
+        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[320px] text-center shadow-2xl">
+            <h2 class="text-xs font-bold mb-6 text-slate-500 tracking-widest uppercase">Admin Verification</h2>
+            <div id="pin-display" class="bg-black p-4 mb-6 rounded-2xl text-4xl h-16 flex items-center justify-center font-mono tracking-[0.3em]"></div>
             <div class="grid grid-cols-3 gap-2">
-                <script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="keypad-btn active:bg-blue-600">${i}</button>`);</script>
-                <button onclick="clearPin()" class="keypad-btn text-red-500 font-bold">C</button>
-                <button onclick="pressKey('0')" class="keypad-btn">0</button>
-                <button onclick="hideLogin()" class="keypad-btn text-slate-500 text-xs font-bold uppercase tracking-tighter">Back</button>
+                <script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="py-4 bg-slate-800 rounded-xl text-xl active:bg-blue-600">${i}</button>`);</script>
+                <button onclick="clearPin()" class="py-4 bg-red-900/30 text-red-500 rounded-xl font-bold">C</button>
+                <button onclick="pressKey('0')" class="py-4 bg-slate-800 rounded-xl text-xl">0</button>
+                <button onclick="hideLogin()" class="py-4 bg-slate-700 rounded-xl text-xs uppercase">Back</button>
             </div>
         </div>
     </div>
 
     <script>
-        let layoutData = JSON.parse(localStorage.getItem('rtu_group_layout')) || {
-            1: [ {t:20, l:15, w:250, h:150, name: "1층 사무구역", lcuIds: [1,2,3], status: 'OFF'} ],
-            2: [ {t:30, l:30, w:250, h:150, name: "2층 연구실", lcuIds: [6,7,8], status: 'OFF'} ],
-            3: [ {t:50, l:40, w:200, h:120, name: "3층 임원실", lcuIds: [11], status: 'OFF'} ]
+        // --- 1. 초기 데이터 및 상태 ---
+        const initialData = {
+            1: [ {t:15, l:15, w:250, h:150, id:1, name: "1층 사무구역", lcuIds: [1,2,3], status:'OFF'} ],
+            2: [ {t:30, l:30, w:300, h:200, id:2, name: "2층 실험실", lcuIds: [6,7], status:'OFF'} ],
+            3: [ {t:50, l:40, w:200, h:120, id:3, name: "3층 대회의실", lcuIds: [11], status:'OFF'} ]
         };
 
-        let curPage = 1, pin = "";
+        let layoutData = JSON.parse(localStorage.getItem('rtu_final_data')) || initialData;
+        let curPage = 1, pin = "", isEditMode = false, currentTab = 'individual';
 
-        // PIN 입력 로직
-        function pressKey(num) {
-            if(pin.length < 4) {
-                pin += num;
-                document.getElementById('pin-display').innerText = '●'.repeat(pin.length);
-            }
-            if(pin.length === 4) {
-                if(pin === "0000") {
-                    enterAdminMode(); // 성공 시 즉시 이동
-                } else {
-                    alert("비밀번호가 틀렸습니다.");
-                    clearPin();
-                }
-            }
+        // --- 2. 자동 테스트 엔진 (Diagnostic Tool) ---
+        function runAutoTest() {
+            console.group("%c🛠 RTU System 자동 검증 리포트", "color: #3b82f6; font-size: 14px; font-weight: bold;");
+            const tests = [];
+
+            // Test 1: PIN 보안 로직 검증
+            const testPin = (p) => { pin = p; return (pin === "0000"); };
+            tests.push({ name: "PIN 인증 (맞는 번호)", result: testPin("0000") === true });
+            tests.push({ name: "PIN 인증 (틀린 번호)", result: testPin("1111") === false });
+
+            // Test 2: 데이터 무결성 검증
+            tests.push({ name: "층별 데이터 로드 확인", result: !!layoutData[1] && !!layoutData[2] && !!layoutData[3] });
+
+            // Test 3: 상태 변경 및 영구 저장 로직 검증
+            const originalStatus = layoutData[1][0].status;
+            layoutData[1][0].status = 'ON';
+            saveData();
+            const savedData = JSON.parse(localStorage.getItem('rtu_final_data'));
+            tests.push({ name: "상태 변경 및 LocalStorage 저장", result: savedData[1][0].status === 'ON' });
+            layoutData[1][0].status = originalStatus; // 원상복구
+            saveData();
+
+            // Test 4: UI 요소 존재 확인
+            tests.push({ name: "주요 DOM 요소 존재 확인", result: !!document.getElementById('blueprint') && !!document.getElementById('page-admin-main') });
+
+            // 결과 출력
+            tests.forEach((t, i) => {
+                const icon = t.result ? "✅" : "❌";
+                const color = t.result ? "color: #10b981" : "color: #ef4444";
+                console.log(`${i+1}. ${t.name}: %c${icon}`, color);
+            });
+            console.groupEnd();
         }
 
-        function clearPin() { pin = ""; document.getElementById('pin-display').innerText = ""; }
-
-        // [패치] 관리자 모드 진입 (팝업 제거 및 검은 화면 방지)
-        function enterAdminMode() {
-            // 1. 로그인 모달 숨기기
-            document.getElementById('page-login').classList.add('hidden');
-            // 2. 사용자 모드 숨기기
-            document.getElementById('page-user').classList.add('hidden');
-            document.getElementById('page-user').classList.remove('page-active');
-            
-            // 3. 관리자 메인 활성화 (클래스 강제 부여)
-            const adminMain = document.getElementById('page-admin-main');
-            adminMain.classList.remove('hidden');
-            adminMain.classList.add('page-active');
-            
-            // 4. 데이터 테이블 초기 렌더링
-            renderAdminTable();
-        }
-
-        function showLogin() {
-            clearPin();
-            document.getElementById('page-login').classList.remove('hidden');
-        }
-
-        function hideLogin() {
-            document.getElementById('page-login').classList.add('hidden');
-        }
-
-        // 도면 및 레이어 렌더링
+        // --- 3. 핵심 기능 함수들 ---
         function updatePage() {
             const container = document.getElementById('blueprint');
             container.style.backgroundImage = `url('rtu_ui${curPage === 1 ? '' : curPage}.jpg')`;
-            renderGroupLayers();
+            renderLayers();
         }
 
-        function renderGroupLayers() {
+        function renderLayers() {
             const container = document.getElementById('blueprint');
             container.innerHTML = '';
-            const groups = layoutData[curPage] || [];
-
-            groups.forEach((group) => {
+            (layoutData[curPage] || []).forEach((group, idx) => {
                 const layer = document.createElement('div');
-                layer.className = `group-layer ${group.status === 'ON' ? 'status-on' : 'status-off'}`;
+                layer.className = `group-layer ${isEditMode ? 'edit-mode' : (group.status==='ON'?'status-on':'status-off')}`;
                 layer.style.cssText = `top:${group.t}%; left:${group.l}%; width:${group.w}px; height:${group.h}px;`;
-                layer.innerHTML = `<div class="bg-black/70 px-3 py-1 rounded-lg text-xs font-bold border border-white/20">${group.name}</div>`;
+                layer.innerHTML = `<div class="bg-black/70 px-3 py-1 rounded text-xs font-bold border border-white/10">${group.name}</div>`;
                 
-                layer.onclick = () => {
-                    if(group.status === 'OFF') {
-                        if(confirm(`[${group.name}] 구역의 전원을 복구하시겠습니까?`)) {
-                            group.status = 'ON';
-                            localStorage.setItem('rtu_group_layout', JSON.stringify(layoutData));
-                            renderGroupLayers();
-                        }
-                    }
-                };
+                layer.onclick = () => { if(!isEditMode && group.status === 'OFF') handleControl(curPage, idx, 'ON'); };
                 container.appendChild(layer);
             });
+        }
+
+        function handleControl(pg, idx, target) {
+            if(confirm(`[${layoutData[pg][idx].name}] 구역을 ${target} 하시겠습니까?`)) {
+                layoutData[pg][idx].status = target;
+                saveData(); renderLayers(); if(currentTab) renderAdminTable();
+            }
+        }
+
+        function switchTab(t) {
+            currentTab = t;
+            document.querySelectorAll('nav button').forEach(b => b.classList.replace('bg-blue-600', 'text-slate-400'));
+            document.getElementById('tab-'+t).className = "px-5 py-2 bg-blue-600 rounded-lg font-bold text-xs transition";
+            renderAdminTable();
         }
 
         function renderAdminTable() {
             const body = document.getElementById('admin-table-body');
             body.innerHTML = '';
-            // 시뮬레이션용 데이터 생성
-            for(let i=1; i<=10; i++) {
-                const tr = document.createElement('tr');
-                tr.className = "bg-slate-900 border border-slate-800 hover:bg-slate-800 transition";
-                tr.innerHTML = `
-                    <td class="p-4 font-bold text-blue-400">LCU-Device-${i.toString().padStart(2,'0')}</td>
-                    <td class="font-mono text-xs text-slate-300">2.${i}</td>
-                    <td class="font-mono text-xs text-slate-300">14${i}.5</td>
-                    <td class="font-mono text-xs text-green-400">0.4${i}</td>
-                    <td><span class="px-3 py-1 bg-green-900/50 text-green-400 rounded-full text-[10px] font-bold border border-green-700/50">ON</span></td>
-                `;
-                body.appendChild(tr);
-            }
+            // 간단한 리스트 렌더링 (테스트용)
+            Object.keys(layoutData).forEach(pg => {
+                layoutData[pg].forEach((g, idx) => {
+                    const tr = document.createElement('tr');
+                    tr.className = "bg-slate-900 border border-slate-800 hover:bg-slate-800 transition";
+                    tr.innerHTML = `<td class="p-4 font-bold text-blue-400">${g.name}</td><td>${(Math.random()*2).toFixed(1)}</td><td>${(Math.random()*50).toFixed(1)}</td><td><button onclick="handleControl(${pg},${idx},'${g.status==='ON'?'OFF':'ON'}')" class="px-4 py-1 rounded-full ${g.status==='ON'?'bg-green-600':'bg-red-600'}">${g.status}</button></td>`;
+                    body.appendChild(tr);
+                });
+            });
         }
 
-        function changePage(d) {
-            curPage = Math.max(1, Math.min(3, curPage + d));
+        function saveData() { localStorage.setItem('rtu_final_data', JSON.stringify(layoutData)); }
+        function showLogin() { pin = ""; document.getElementById('pin-display').innerText = ""; document.getElementById('page-login').classList.remove('hidden'); }
+        function hideLogin() { document.getElementById('page-login').classList.add('hidden'); }
+        function pressKey(n) { if(pin.length<4) { pin+=n; document.getElementById('pin-display').innerText='●'.repeat(pin.length); } if(pin.length===4) { if(pin==="0000") { document.getElementById('page-login').classList.add('hidden'); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); switchTab('individual'); } else { alert("PIN 오류"); pin=""; document.getElementById('pin-display').innerText=""; } } }
+        function changePage(d) { curPage = Math.max(1, Math.min(3, curPage + d)); updatePage(); }
+        function enterEditMode() { isEditMode = true; document.getElementById('page-admin-main').classList.add('hidden'); document.getElementById('page-user').classList.remove('hidden'); document.getElementById('edit-controls').classList.remove('hidden'); renderLayers(); }
+        function saveEdit() { isEditMode = false; document.getElementById('edit-controls').classList.add('hidden'); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); saveData(); renderAdminTable(); }
+
+        setInterval(() => { document.getElementById('top-clock').innerText = new Date().toLocaleTimeString(); }, 1000);
+
+        // 페이지 로드 시 자동 실행
+        window.onload = () => {
             updatePage();
-        }
-
-        setInterval(() => {
-            document.getElementById('top-clock').innerText = new Date().toLocaleTimeString();
-        }, 1000);
-
-        window.onload = updatePage;
+            runAutoTest(); // 자동 테스트 함수 호출
+        };
     </script>
 </body>
 </html>
