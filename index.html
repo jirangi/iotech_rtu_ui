@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Exsaver RTU v5.4 Final Verified</title>
+    <title>Exsaver RTU v5.5 Final Verified</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -11,23 +11,26 @@
         .group-layer { position: absolute; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px solid transparent; z-index: 10; }
         .status-off { background: rgba(239, 68, 68, 0.4) !important; border: 2px solid #ef4444 !important; }
         .status-on { background: rgba(34, 197, 94, 0.3) !important; border: 2px solid #22c55e !important; }
-        /* 구역 추가 시 투명 노랑 레이어 적용 */
-        .edit-mode .group-layer { border: 2px dashed #fbbf24 !important; background: rgba(251, 191, 36, 0.4) !important; cursor: move; }
-        .resizer { display: none; width: 22px; height: 22px; background: #fbbf24; position: absolute; bottom: -11px; right: -11px; border-radius: 50%; z-index: 20; cursor: se-resize; border: 2px solid white; }
-        .edit-mode .resizer { display: block; }
+        /* 편집 모드 및 선택된 구역 테두리 강조 */
+        .edit-mode .group-layer { border: 2px dashed #fbbf24 !important; background: rgba(251, 191, 36, 0.3) !important; }
+        .edit-mode .group-layer.selected { border: 3px solid #fcd34d !important; box-shadow: 0 0 15px rgba(251, 191, 36, 0.6); z-index: 50; }
+        .resizer { display: none; width: 24px; height: 24px; background: #fbbf24; position: absolute; bottom: -12px; right: -12px; border-radius: 50%; z-index: 60; cursor: se-resize; border: 2px solid white; }
+        .edit-mode .selected .resizer { display: block; }
         .modal-bg { background: rgba(0,0,0,0.95); backdrop-filter: blur(8px); position: fixed; inset: 0; z-index: 1000; }
         .key-btn { background: #1e293b; height: 48px; border-radius: 6px; border: 1px solid #334155; font-size: 14px; color: white; display: flex; align-items: center; justify-content: center; }
         .key-btn:active { background: #3b82f6; transform: scale(0.95); }
+        .match-box { cursor: pointer; transition: 0.2s; border: 1px solid #334155; background: #0f172a; }
+        .match-box:active { background: #1e293b; }
     </style>
 </head>
 <body class="bg-slate-950 text-white font-sans text-xs">
 
     <div id="page-user" class="flex flex-col h-full">
         <header class="p-3 flex justify-between items-center bg-slate-900 border-b border-slate-800 shadow-xl">
-            <h1 class="text-lg font-black text-blue-500 italic uppercase">RTU MONITORING v5.4</h1>
+            <h1 class="text-lg font-black text-blue-500 italic uppercase">RTU MONITORING v5.5</h1>
             <div class="flex items-center gap-5">
                 <div id="top-clock" class="font-mono text-slate-400 text-sm">00:00:00</div>
-                <button onclick="showLogin()" class="px-5 py-2 bg-blue-600 rounded-lg font-bold shadow-lg">🔒 ADMIN</button>
+                <button onclick="showLogin()" class="px-5 py-2 bg-blue-600 rounded-lg font-bold">🔒 ADMIN</button>
             </div>
         </header>
         <main class="flex-1 flex flex-col justify-center relative p-4">
@@ -36,13 +39,14 @@
             <button class="absolute right-4 p-5 bg-slate-800/60 rounded-full" onclick="changePage(1)">→</button>
             <div id="edit-controls" class="hidden absolute bottom-4 flex gap-3 bg-slate-900/95 p-4 rounded-2xl border border-blue-900 shadow-2xl z-[100]">
                 <button onclick="addGroupLayer()" class="px-5 py-2 bg-amber-600 rounded-xl font-bold">+ 구역 추가</button>
+                <button onclick="deleteSelectedGroup()" class="px-5 py-2 bg-red-600 rounded-xl font-bold">삭제</button>
                 <button onclick="saveEditAndExit()" class="px-7 py-2 bg-blue-600 rounded-xl font-bold">편집 저장</button>
             </div>
         </main>
     </div>
 
     <div id="page-admin-main" class="hidden flex flex-col h-full bg-slate-950">
-        <nav class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center shadow-md">
+        <nav class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
             <div class="flex gap-2 bg-slate-800 p-1 rounded-xl">
                 <button id="tab-individual" onclick="switchTab('individual')" class="px-5 py-2 bg-blue-600 rounded-lg font-bold">LCU별 통계</button>
                 <button id="tab-group" onclick="switchTab('group')" class="px-5 py-2 rounded-lg text-slate-400">그룹별 통계</button>
@@ -51,7 +55,7 @@
             <div class="flex gap-2">
                 <button onclick="addNewLCU()" class="px-3 py-2 bg-emerald-700 rounded text-[10px] font-bold">+ LCU</button>
                 <button onclick="addNewFloor()" class="px-3 py-2 bg-indigo-700 rounded text-[10px] font-bold">+ 층</button>
-                <button onclick="enterEditMode()" class="px-4 py-2 bg-amber-600 rounded font-bold text-xs uppercase">Layout Edit</button>
+                <button onclick="enterEditMode()" class="px-4 py-2 bg-amber-600 rounded font-bold text-xs">Layout Edit</button>
                 <button onclick="location.reload()" class="px-4 py-2 bg-slate-800 rounded text-xs">LOGOUT</button>
             </div>
         </nav>
@@ -79,40 +83,24 @@
     <div id="modal-matching" class="hidden fixed inset-0 z-[1500] modal-bg flex items-center justify-center">
         <div class="bg-slate-800 w-[550px] rounded-3xl border border-slate-600 p-8 shadow-2xl">
             <h3 id="matching-title" class="text-xl font-bold mb-6 text-amber-400">매칭 장비 선택</h3>
-            <div id="matching-container" class="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto mb-8 p-3 bg-slate-950 rounded-xl">
-                </div>
-            <button onclick="saveMatching()" class="w-full py-4 bg-blue-600 rounded-xl font-bold text-lg shadow-lg">설정 저장 및 닫기</button>
-        </div>
-    </div>
-
-    <div id="page-login" class="hidden fixed inset-0 z-[1200] modal-bg flex items-center justify-center">
-        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[320px] text-center shadow-2xl">
-            <div id="pin-display" class="bg-black p-4 mb-6 rounded-2xl text-4xl h-16 flex items-center justify-center font-mono tracking-widest text-blue-500"></div>
-            <div class="grid grid-cols-3 gap-2">
-                <script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="py-4 bg-slate-800 rounded-xl text-xl font-bold">${i}</button>`);</script>
-                <button onclick="clearPin()" class="py-4 bg-red-900/30 text-red-500 rounded-xl font-bold">C</button>
-                <button onclick="pressKey('0')" class="py-4 bg-slate-800 rounded-xl text-xl">0</button>
-                <button onclick="hideLogin()" class="py-4 bg-slate-700 rounded-xl text-[10px] uppercase font-bold">Back</button>
-            </div>
-            <button onclick="togglePinChangeMode()" class="mt-4 text-[10px] text-blue-400 underline">PIN 비밀번호 변경</button>
+            <div id="matching-container" class="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto mb-8 p-3 bg-slate-950 rounded-xl"></div>
+            <button onclick="saveMatching()" class="w-full py-4 bg-blue-600 rounded-xl font-bold text-lg">설정 저장</button>
         </div>
     </div>
 
     <script>
-        // --- 전역 상태 및 데이터 ---
+        // --- 전역 데이터 ---
         let adminPin = localStorage.getItem('rtu_admin_pin') || "0000";
-        let lcuList = JSON.parse(localStorage.getItem('rtu_lcu_v17')) || Array.from({length:10}, (_, i)=>({id:i+1, name:`LCU-${(i+1).toString().padStart(2,'0')}`, save:1.2, total:100, now:0.5, status:'OFF'}));
-        let floorData = JSON.parse(localStorage.getItem('rtu_floors_v17')) || [{ id:1, name:"1층 사무동", groups:[] }, { id:2, name:"2층 연구실", groups:[] }];
+        let lcuList = JSON.parse(localStorage.getItem('rtu_lcu_v18')) || Array.from({length:5}, (_, i)=>({id:i+1, name:`LCU-${(i+1).toString().padStart(2,'0')}`, save:1.2, total:100, now:0.5, status:'OFF'}));
+        let floorData = JSON.parse(localStorage.getItem('rtu_floors_v18')) || [{ id:1, name:"1층", groups:[] }];
         
-        let curPageIdx = 0, currentTab = 'individual', isEditMode = false, editingObj = null, pinAttempt = "", currentLang = 'EN';
-        let matchingTarget = null; // { type: 'group'|'floor', idx: number }
-
+        let curPageIdx = 0, currentTab = 'individual', isEditMode = false, editingObj = null, selectedGroupIdx = null, currentLang = 'EN';
         const keySets = {
             'EN': [["1","2","3","4","5","6","7","8","9","0"],["Q","W","E","R","T","Y","U","I","O","P"],["A","S","D","F","G","H","J","K","L"],["Z","X","C","V","B","N","M", "←"]],
             'KO': [["1","2","3","4","5","6","7","8","9","0"],["ㅂ","ㅈ","ㄷ","ㄱ","ㅅ","ㅛ","ㅕ","ㅑ","ㅐ","ㅔ"],["ㅁ","ㄴ","ㅇ","ㄹ","ㅎ","ㅗ","ㅓ","ㅏ","ㅣ"],["ㅋ","ㅌ","ㅊ","ㅍ","ㅠ","ㅜ","ㅡ", "←"]]
         };
 
-        // --- 1. 도면 및 렌더링 ---
+        // --- 도면 및 레이어 로직 ---
         function updatePage() {
             const container = document.getElementById('blueprint');
             const floor = floorData[curPageIdx];
@@ -125,36 +113,60 @@
             floorData[curPageIdx].groups.forEach((g, idx) => {
                 const layer = document.createElement('div');
                 layer.className = `group-layer ${isEditMode ? 'edit-mode' : (g.status==='ON'?'status-on':'status-off')}`;
+                if(isEditMode && selectedGroupIdx === idx) layer.classList.add('selected');
                 layer.style.cssText = `top:${g.t}%; left:${g.l}%; width:${g.w}px; height:${g.h}px;`;
                 layer.innerHTML = `<span class="bg-black/80 px-2 py-1 rounded text-[10px] font-bold text-white shadow-md">그룹: ${g.name}</span>`;
                 
                 if(isEditMode) {
                     const resizer = document.createElement('div'); resizer.className = 'resizer';
                     resizer.onmousedown = (e) => { e.stopPropagation(); initResize(e, idx); }; layer.appendChild(resizer);
-                    layer.onmousedown = (e) => { if(e.target === layer) initDrag(e, idx); };
+                    layer.onmousedown = (e) => { 
+                        e.stopPropagation();
+                        selectedGroupIdx = idx; renderLayers(); initDrag(e, idx); 
+                    };
                 } else {
                     layer.onclick = (e) => {
                         e.stopPropagation();
-                        if(g.status==='OFF' && confirm(`${g.name} 구역 전원을 복구하시겠습니까?`)) {
-                            g.status='ON'; saveAll(); renderLayers();
-                        }
+                        if(g.status==='OFF' && confirm(`${g.name} 복구?`)) toggleStatus('group', idx, 'ON');
                     };
                 }
                 container.appendChild(layer);
             });
         }
 
-        // --- 2. 관리자 탭 및 매칭 ---
+        // --- 제어 동기화 로직 (핵심) ---
+        function toggleStatus(type, idx, forceStatus = null) {
+            let target;
+            if(type === 'individual') target = lcuList[idx];
+            else if(type === 'group') target = floorData[curPageIdx].groups[idx];
+            else target = floorData[idx];
+
+            const next = forceStatus || (target.status === 'ON' ? 'OFF' : 'ON');
+            
+            if(forceStatus || confirm(`${target.name} 상태를 ${next} 하시겠습니까?`)) {
+                target.status = next;
+                
+                // 그룹 제어 시 하위 LCU 동기화
+                if(type === 'group' && target.lcuIds) {
+                    lcuList.forEach(lcu => {
+                        if(target.lcuIds.includes(lcu.id)) lcu.status = next;
+                    });
+                }
+                saveAll(); renderAdminTable(); renderLayers();
+            }
+        }
+
+        // --- 관리자 기능 ---
         function renderAdminTable() {
             const head = document.getElementById('table-header-row'); const body = document.getElementById('admin-table-body');
-            body.innerHTML = ''; const h = `<th>대기전력 절감(kW)</th><th>전력량(kWh)</th><th>순시전력(kW)</th>`;
+            body.innerHTML = ''; const h = `<th>절감량(kW)</th><th>전력량(kWh)</th><th>순시전력(kW)</th>`;
             
             if(currentTab === 'individual') {
                 head.innerHTML = `<th>LCU 명칭</th>${h}<th>상태</th>`;
                 lcuList.forEach((l, i) => {
                     const tr = document.createElement('tr'); tr.className = "bg-slate-900 border border-slate-800";
                     tr.innerHTML = `<td class="p-4 text-blue-400 font-bold" onclick="openKeypad('lcu', ${i})">${l.name}</td><td>${l.save}</td><td>${l.total}</td><td>${l.now}</td>
-                    <td><button onclick="toggleStatus('lcu', ${i})" class="px-5 py-1 rounded-full font-bold ${l.status==='ON'?'bg-green-600 text-white':'bg-red-600 text-white'}">${l.status}</button></td>`;
+                    <td><button onclick="toggleStatus('individual', ${i})" class="px-5 py-1 rounded-full font-bold ${l.status==='ON'?'bg-green-600':'bg-red-600'}">${l.status}</button></td>`;
                     body.appendChild(tr);
                 });
             } else if(currentTab === 'group') {
@@ -162,107 +174,72 @@
                 floorData[curPageIdx].groups.forEach((g, i) => {
                     const tr = document.createElement('tr'); tr.className = "bg-slate-900 border border-slate-800";
                     tr.innerHTML = `<td class="p-4 text-amber-500 font-bold" onclick="openKeypad('group', ${i})">${g.name}</td><td>1.2</td><td>240</td><td>0.5</td>
-                    <td><button onclick="openMatching('group', ${i})" class="text-[10px] bg-slate-700 px-3 py-1 rounded font-bold border border-slate-600">설정 (${g.lcuIds ? g.lcuIds.length : 0})</button></td>
-                    <td><button onclick="toggleStatus('group', ${i})" class="px-5 py-1 rounded-full font-bold ${g.status==='ON'?'bg-green-600 text-white':'bg-red-600 text-white'}">${g.status}</button></td>`;
-                    body.appendChild(tr);
-                });
-            } else {
-                head.innerHTML = `<th>층 명칭</th>${h}<th>그룹 매칭</th><th>상태</th>`;
-                floorData.forEach((f, i) => {
-                    const tr = document.createElement('tr'); tr.className = "bg-slate-900 border border-slate-800";
-                    tr.innerHTML = `<td class="p-4 text-indigo-400 font-bold" onclick="openKeypad('floor', ${i})">${f.name}</td><td>4.5</td><td>1200</td><td>1.2</td>
-                    <td><button onclick="openMatching('floor', ${i})" class="text-[10px] bg-slate-700 px-3 py-1 rounded font-bold border border-slate-600">그룹 할당</button></td>
-                    <td><button onclick="toggleStatus('floor', ${i})" class="px-5 py-1 rounded-full font-bold ${f.status==='ON'?'bg-green-600':'bg-red-600'}">${f.status}</button></td>`;
+                    <td><button onclick="openMatching('group', ${i})" class="text-[10px] bg-slate-700 px-3 py-1 rounded border border-slate-600">설정 (${g.lcuIds ? g.lcuIds.length : 0})</button></td>
+                    <td><button onclick="toggleStatus('group', ${i})" class="px-5 py-1 rounded-full font-bold ${g.status==='ON'?'bg-green-600':'bg-red-600'}">${g.status}</button></td>`;
                     body.appendChild(tr);
                 });
             }
         }
 
-        // 매칭 모달 로직
         function openMatching(type, idx) {
-            matchingTarget = { type, idx };
-            const container = document.getElementById('matching-container');
-            container.innerHTML = "";
-            document.getElementById('modal-matching').classList.remove('hidden');
-            
-            if(type === 'group') {
-                const group = floorData[curPageIdx].groups[idx];
-                if(!group.lcuIds) group.lcuIds = [];
-                lcuList.forEach(lcu => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center gap-2 p-2 border border-slate-800 rounded bg-slate-900";
-                    div.innerHTML = `<input type="checkbox" value="${lcu.id}" ${group.lcuIds.includes(lcu.id)?'checked':''}> <span class="text-[10px]">${lcu.name}</span>`;
-                    container.appendChild(div);
-                });
-            } else {
-                const floor = floorData[idx];
-                if(!floor.groupIds) floor.groupIds = [];
-                floorData[curPageIdx].groups.forEach(g => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center gap-2 p-2 border border-slate-800 rounded bg-slate-900";
-                    div.innerHTML = `<input type="checkbox" value="${g.id}" ${floor.groupIds.includes(g.id)?'checked':''}> <span class="text-[10px]">${g.name}</span>`;
-                    container.appendChild(div);
-                });
-            }
-        }
-
-        function saveMatching() {
-            const checks = Array.from(document.querySelectorAll('#matching-container input:checked')).map(i => Number(i.value));
-            if(matchingTarget.type === 'group') floorData[curPageIdx].groups[matchingTarget.idx].lcuIds = checks;
-            else floorData[matchingTarget.idx].groupIds = checks;
-            saveAll(); renderAdminTable(); document.getElementById('modal-matching').classList.add('hidden');
-        }
-
-        // --- 3. QWERTY 키패드 (한/영 전환) ---
-        function openKeypad(type, idx) {
             editingObj = { type, idx };
-            document.getElementById('keypad-input').value = (type==='lcu'?lcuList[idx].name : type==='group'?floorData[curPageIdx].groups[idx].name : floorData[idx].name);
-            renderKeypad();
-            document.getElementById('modal-keypad').classList.remove('hidden');
+            const container = document.getElementById('matching-container'); container.innerHTML = "";
+            const group = floorData[curPageIdx].groups[idx]; if(!group.lcuIds) group.lcuIds = [];
+            
+            lcuList.forEach(lcu => {
+                const box = document.createElement('div');
+                box.className = `match-box flex items-center gap-3 p-3 rounded-xl border ${group.lcuIds.includes(lcu.id)?'border-blue-500 bg-blue-900/20':'border-slate-700'}`;
+                box.innerHTML = `<input type="checkbox" class="w-4 h-4" ${group.lcuIds.includes(lcu.id)?'checked':''}> <span class="text-sm">${lcu.name}</span>`;
+                box.onclick = () => {
+                    const cb = box.querySelector('input'); cb.checked = !cb.checked;
+                    if(cb.checked) group.lcuIds.push(lcu.id); else group.lcuIds = group.lcuIds.filter(id => id !== lcu.id);
+                    openMatching(type, idx);
+                };
+                container.appendChild(box);
+            });
+            document.getElementById('modal-matching').classList.remove('hidden');
         }
 
+        // --- 자판 로직 ---
         function renderKeypad() {
             const rows = document.getElementById('keypad-rows'); rows.innerHTML = "";
-            const currentSet = keySets[currentLang];
-            currentSet.forEach(row => {
+            keySets[currentLang].forEach(row => {
                 const div = document.createElement('div'); div.className = "flex justify-center gap-1.5";
                 row.forEach(key => {
                     const b = document.createElement('button'); b.className = `key-btn w-[65px] ${key==="←"?"w-[100px] bg-red-900/40 text-red-500":""}`;
                     b.innerText = key; b.onclick = () => { if(key==="←") backspace(); else addKey(key); }; div.appendChild(b);
                 }); rows.appendChild(div);
             });
-            // 특수키 행 (한/영, Space)
-            const special = document.createElement('div'); special.className = "flex justify-center gap-1.5 mt-1";
-            special.innerHTML = `
-                <button onclick="toggleLang()" class="key-btn w-[100px] bg-slate-700 font-bold">${currentLang==='EN'?'한글':'English'}</button>
-                <button onclick="addKey(' ')" class="key-btn w-[300px] bg-slate-800">SPACE</button>
-            `;
+            const special = document.createElement('div'); special.className = "flex justify-center gap-1.5 mt-1.5";
+            special.innerHTML = `<button onclick="toggleLang()" class="key-btn w-[100px] bg-slate-700 font-bold">${currentLang==='EN'?'한글':'English'}</button><button onclick="addKey(' ')" class="key-btn w-[300px] bg-slate-800">SPACE</button>`;
             rows.appendChild(special);
         }
 
+        function openKeypad(type, idx) {
+            editingObj = { type, idx }; document.getElementById('keypad-input').value = (type==='lcu'?lcuList[idx].name : floorData[curPageIdx].groups[idx].name);
+            renderKeypad(); document.getElementById('modal-keypad').classList.remove('hidden');
+        }
+
+        // --- 기타 기능 ---
+        function addGroupLayer() {
+            const newIdx = floorData[curPageIdx].groups.length;
+            floorData[curPageIdx].groups.push({id:Date.now(), t:40, l:40, w:180, h:120, name:"신규 그룹", status:'OFF', lcuIds:[]});
+            selectedGroupIdx = newIdx; renderLayers();
+            openKeypad('group', newIdx); // 생성 즉시 이름 수정
+        }
+        function deleteSelectedGroup() { if(selectedGroupIdx !== null) { floorData[curPageIdx].groups.splice(selectedGroupIdx, 1); selectedGroupIdx = null; renderLayers(); } }
+        function saveAll() { localStorage.setItem('rtu_lcu_v18', JSON.stringify(lcuList)); localStorage.setItem('rtu_floors_v18', JSON.stringify(floorData)); }
+        function saveMatching() { saveAll(); renderAdminTable(); document.getElementById('modal-matching').classList.add('hidden'); }
+        function closeKeypad(save) { if(save) { const v = document.getElementById('keypad-input').value; if(editingObj.type==='lcu') lcuList[editingObj.idx].name=v; else floorData[curPageIdx].groups[editingObj.idx].name=v; saveAll(); renderAdminTable(); renderLayers(); } document.getElementById('modal-keypad').classList.add('hidden'); }
+        function enterEditMode() { isEditMode = true; document.getElementById('page-admin-main').classList.add('hidden'); document.getElementById('page-user').classList.remove('hidden'); document.getElementById('edit-controls').classList.remove('hidden'); updatePage(); }
+        function saveEditAndExit() { isEditMode = false; selectedGroupIdx = null; document.getElementById('edit-controls').classList.add('hidden'); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); saveAll(); renderAdminTable(); }
         function toggleLang() { currentLang = (currentLang === 'EN' ? 'KO' : 'EN'); renderKeypad(); }
         function addKey(k) { document.getElementById('keypad-input').value += k; }
         function backspace() { const i = document.getElementById('keypad-input'); i.value = i.value.slice(0,-1); }
-
-        // --- 나머지 유틸리티 ---
-        function saveAll() { localStorage.setItem('rtu_lcu_v17', JSON.stringify(lcuList)); localStorage.setItem('rtu_floors_v17', JSON.stringify(floorData)); }
-        function closeKeypad(save) { if(save) { const v = document.getElementById('keypad-input').value; if(editingObj.type==='lcu') lcuList[editingObj.idx].name=v; else if(editingObj.type==='group') floorData[curPageIdx].groups[editingObj.idx].name=v; else floorData[editingObj.idx].name=v; saveAll(); renderAdminTable(); renderLayers(); } document.getElementById('modal-keypad').classList.add('hidden'); }
-        function toggleStatus(type, idx) { let t = (type==='lcu'?lcuList[idx] : type==='group'?floorData[curPageIdx].groups[idx] : floorData[idx]); if(confirm('변경하시겠습니까?')) { t.status = t.status==='ON'?'OFF':'ON'; saveAll(); renderAdminTable(); } }
         function switchTab(t) { currentTab = t; document.querySelectorAll('nav button').forEach(b => b.classList.remove('bg-blue-600')); document.getElementById('tab-'+t).classList.add('bg-blue-600'); renderAdminTable(); }
         function changePage(d) { curPageIdx = (curPageIdx + d + floorData.length) % floorData.length; updatePage(); }
-        function enterEditMode() { isEditMode = true; document.getElementById('page-admin-main').classList.add('hidden'); document.getElementById('page-user').classList.remove('hidden'); document.getElementById('edit-controls').classList.remove('hidden'); updatePage(); }
-        function saveEditAndExit() { isEditMode = false; document.getElementById('edit-controls').classList.add('hidden'); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); saveAll(); renderAdminTable(); }
-        function addGroupLayer() { floorData[curPageIdx].groups.push({id:Date.now(), t:40, l:40, w:180, h:120, name:"신규 그룹", status:'OFF', lcuIds:[]}); renderLayers(); }
         function initDrag(e, idx) { let sX=e.clientX, sY=e.clientY; window.onmousemove=(ev)=>{ const dx=ev.clientX-sX, dy=ev.clientY-sY; const d=floorData[curPageIdx].groups[idx]; d.l+=(dx/1000)*100; d.t+=(dy/600)*100; sX=ev.clientX; sY=ev.clientY; renderLayers(); }; window.onmouseup=()=>window.onmousemove=null; }
         function initResize(e, idx) { let sX=e.clientX, sY=e.clientY; window.onmousemove=(ev)=>{ const d=floorData[curPageIdx].groups[idx]; d.w+=(ev.clientX-sX); d.h+=(ev.clientY-sY); sX=ev.clientX; sY=ev.clientY; renderLayers(); }; window.onmouseup=()=>window.onmousemove=null; }
-        function showLogin() { pinAttempt = ""; document.getElementById('pin-display').innerText = ""; document.getElementById('page-login').classList.remove('hidden'); }
-        function hideLogin() { document.getElementById('page-login').classList.add('hidden'); }
-        function pressKey(n) { if(pinAttempt.length<4) { pinAttempt+=n; document.getElementById('pin-display').innerText = '●'.repeat(pinAttempt.length); if(pinAttempt.length===4) { if(window.isChangingPin) { adminPin=pinAttempt; localStorage.setItem('rtu_admin_pin', adminPin); alert("변경됨"); window.isChangingPin=false; showLogin(); } else if(pinAttempt===adminPin) { hideLogin(); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); switchTab('individual'); } else { alert("오류"); clearPin(); } } } }
-        function clearPin() { pinAttempt = ""; document.getElementById('pin-display').innerText = ""; }
-        function togglePinChangeMode() { window.isChangingPin = true; pinAttempt = ""; alert('새 4자리 PIN을 입력하세요.'); }
-        function addNewLCU() { lcuList.push({id:Date.now(), name:"LCU-New", save:0, total:0, now:0, status:'OFF'}); renderAdminTable(); }
-        function addNewFloor() { floorData.push({id:floorData.length+1, name:"Floor-New", groups:[]}); updatePage(); renderAdminTable(); }
-
         setInterval(() => { document.getElementById('top-clock').innerText = new Date().toLocaleTimeString(); }, 1000);
         window.onload = updatePage;
     </script>
