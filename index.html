@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Exsaver RTU v6.3 Final Master</title>
+    <title>Exsaver RTU v6.4 Final Master</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -12,16 +12,13 @@
         .status-off { background: rgba(239, 68, 68, 0.4) !important; border: 2px solid #ef4444 !important; }
         .status-on { background: rgba(34, 197, 94, 0.3) !important; border: 2px solid #22c55e !important; }
         .edit-mode .group-layer.selected { border: 4px solid #fcd34d !important; box-shadow: 0 0 20px rgba(251, 191, 36, 0.8); z-index: 100; }
-        .resizer { display: none; width: 20px; height: 20px; background: #fbbf24; position: absolute; border-radius: 50%; z-index: 110; border: 2px solid white; }
+        .resizer { display: none; width: 22px; height: 22px; background: #fbbf24; position: absolute; border-radius: 50%; z-index: 110; border: 2px solid white; }
         .edit-mode .selected .resizer { display: block; }
-        /* 4개 꼭지점 위치 */
-        .nw { top: -10px; left: -10px; cursor: nw-resize; }
-        .ne { top: -10px; right: -10px; cursor: ne-resize; }
-        .sw { bottom: -10px; left: -10px; cursor: sw-resize; }
-        .se { bottom: -10px; right: -10px; cursor: se-resize; }
+        .nw { top: -11px; left: -11px; cursor: nw-resize; } .ne { top: -11px; right: -11px; cursor: ne-resize; }
+        .sw { bottom: -11px; left: -11px; cursor: sw-resize; } .se { bottom: -11px; right: -11px; cursor: se-resize; }
         .modal-bg { background: rgba(0,0,0,0.95); backdrop-filter: blur(8px); position: fixed; inset: 0; z-index: 1000; }
         .key-btn { background: #1e293b; height: 48px; border-radius: 6px; border: 1px solid #334155; font-size: 14px; color: white; display: flex; align-items: center; justify-content: center; }
-        .match-box { cursor: pointer; transition: background 0.2s; border: 1px solid #334155; background: #0f172a; border-radius: 12px; }
+        .match-box { cursor: pointer; transition: 0.2s; border: 1px solid #334155; background: #0f172a; border-radius: 12px; }
         .match-box.selected { border-color: #3b82f6; background: rgba(59, 130, 246, 0.2); }
     </style>
 </head>
@@ -29,7 +26,7 @@
 
     <div id="page-user" class="flex flex-col h-full">
         <header class="p-3 flex justify-between items-center bg-slate-900 border-b border-slate-800 shadow-xl">
-            <h1 class="text-lg font-black text-blue-500 italic uppercase">RTU MONITORING v6.3</h1>
+            <h1 class="text-lg font-black text-blue-500 italic uppercase">RTU MONITORING v6.4</h1>
             <div class="flex items-center gap-5">
                 <div id="top-clock" class="font-mono text-slate-400">00:00:00</div>
                 <button onclick="showLogin()" class="px-5 py-2 bg-blue-600 rounded-lg font-bold">🔒 ADMIN</button>
@@ -58,7 +55,7 @@
                 <button onclick="addNewLCU()" class="px-3 py-2 bg-emerald-700 rounded text-[10px] font-bold">+ LCU 추가</button>
                 <button onclick="addNewGroupManual()" class="px-3 py-2 bg-amber-700 rounded text-[10px] font-bold">+ 그룹 추가</button>
                 <button onclick="addNewFloor()" class="px-3 py-2 bg-indigo-700 rounded text-[10px] font-bold">+ 층별 추가</button>
-                <button onclick="enterEditMode()" class="px-4 py-2 bg-blue-700 rounded font-bold text-xs uppercase">Layout Edit</button>
+                <button onclick="enterEditMode()" class="px-4 py-2 bg-blue-700 rounded font-bold text-xs">Layout Edit</button>
                 <button onclick="location.reload()" class="px-4 py-2 bg-slate-800 rounded text-xs font-bold">LOGOUT</button>
             </div>
         </nav>
@@ -73,8 +70,8 @@
     </div>
 
     <div id="modal-matching" class="hidden fixed inset-0 z-[1500] modal-bg flex items-center justify-center">
-        <div class="bg-slate-800 w-[550px] rounded-3xl border border-slate-600 p-8 shadow-2xl">
-            <h3 id="matching-title" class="text-xl font-bold mb-6 text-amber-400 text-center uppercase">Matching Target</h3>
+        <div class="bg-slate-800 w-[550px] rounded-3xl border border-slate-600 p-8 shadow-2xl text-center">
+            <h3 id="matching-title" class="text-xl font-bold mb-6 text-amber-400 uppercase">Matching Settings</h3>
             <div id="matching-container" class="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto mb-8 p-3 bg-slate-950 rounded-xl"></div>
             <div class="flex gap-3">
                 <button onclick="saveMatching()" class="flex-1 py-4 bg-blue-600 rounded-xl font-bold text-lg">설정 저장</button>
@@ -83,46 +80,76 @@
         </div>
     </div>
 
-    <div id="page-login" class="hidden fixed inset-0 z-[1200] modal-bg flex items-center justify-center"><div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[320px] text-center shadow-2xl relative"><div id="pin-display" class="bg-black p-4 mb-6 rounded-2xl text-4xl h-16 flex items-center justify-center font-mono tracking-widest text-blue-500 shadow-inner"></div><div class="grid grid-cols-3 gap-2"><script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="py-4 bg-slate-800 rounded-xl text-xl active:bg-blue-600 transition">${i}</button>`);</script><button onclick="clearPin()" class="py-4 bg-red-900/30 text-red-500 rounded-xl font-bold">C</button><button onclick="pressKey('0')" class="py-4 bg-slate-800 rounded-xl text-xl">0</button><button onclick="hideLogin()" class="py-4 bg-slate-700 rounded-xl text-xs font-bold">Back</button></div><button onclick="togglePinChangeMode()" class="mt-4 text-[10px] text-blue-400 underline">PIN 비밀번호 변경</button></div></div>
+    <div id="page-login" class="hidden fixed inset-0 z-[1200] modal-bg flex items-center justify-center"><div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-[320px] text-center shadow-2xl relative"><div id="pin-display" class="bg-black p-4 mb-6 rounded-2xl text-4xl h-16 flex items-center justify-center font-mono tracking-widest text-blue-500 shadow-inner"></div><div class="grid grid-cols-3 gap-2"><script>for(let i=1; i<=9; i++) document.write(`<button onclick="pressKey('${i}')" class="py-4 bg-slate-800 rounded-xl text-xl font-bold active:bg-blue-600 transition">${i}</button>`);</script><button onclick="clearPin()" class="py-4 bg-red-900/30 text-red-500 rounded-xl font-bold">C</button><button onclick="pressKey('0')" class="py-4 bg-slate-800 rounded-xl text-xl">0</button><button onclick="hideLogin()" class="py-4 bg-slate-700 rounded-xl text-xs font-bold uppercase">Back</button></div><button onclick="togglePinChangeMode()" class="mt-4 text-[10px] text-blue-400 underline">PIN 비밀번호 변경</button></div></div>
     <div id="modal-keypad" class="hidden fixed inset-0 z-[2000] modal-bg flex items-end justify-center pb-4"><div class="bg-slate-900 p-4 rounded-3xl border border-slate-700 w-[980px] shadow-2xl"><div class="flex items-center gap-3 mb-3"><input id="keypad-input" type="text" class="flex-1 bg-black p-3 rounded-xl text-xl text-blue-400 border border-slate-800" readonly><button onclick="closeKeypad(true)" class="px-8 py-3 bg-blue-600 rounded-xl font-bold">완료</button><button onclick="closeKeypad(false)" class="px-8 py-3 bg-slate-700 rounded-xl font-bold">취소</button></div><div id="keypad-rows" class="flex flex-col gap-1.5"></div></div></div>
 
     <script>
         // --- 데이터 관리 ---
         let adminPin = localStorage.getItem('rtu_admin_pin') || "0000";
-        let floorData = JSON.parse(localStorage.getItem('rtu_floors_v23')) || [{ id:1, name:"1층", groups:[] }];
-        let lcuList = JSON.parse(localStorage.getItem('rtu_lcu_v23')) || [{id:1, name:"LCU-01", save:0, total:0, now:0, status:'OFF'}];
+        let floorData = JSON.parse(localStorage.getItem('rtu_floors_v24')) || [{ id:1, name:"1층", status:'OFF', groups:[], groupIds:[] }];
+        let lcuList = JSON.parse(localStorage.getItem('rtu_lcu_v24')) || [{id:1, name:"LCU-01", save:0, total:0, now:0, status:'OFF'}];
         
         let curPageIdx = 0, currentTab = 'individual', isEditMode = false, selectedGroupIdx = null, currentLang = 'EN', pinAttempt = "", tempMatchingIds = [];
 
-        // --- 1. [핵심 복구] 매칭 시스템 로직 (전체 터치 및 임시 저장) ---
+        // --- 1. 핵심: 계층형 연쇄 제어 로직 ---
+        function toggleStatus(type, idx, forceStatus = null) {
+            let target;
+            if (type === 'individual') target = lcuList[idx];
+            else if (type === 'group') target = floorData[curPageIdx].groups[idx];
+            else target = floorData[idx];
+
+            const next = forceStatus || (target.status === 'ON' ? 'OFF' : 'ON');
+            
+            if(forceStatus || confirm(`[${target.name}] 상태를 ${next} 하시겠습니까?`)) {
+                target.status = next;
+
+                // [연쇄 동기화] 층별 제어 시 하위 그룹 및 LCU 일괄 제어
+                if (type === 'floor') {
+                    // 1. 해당 층에 매칭된 그룹들 찾기
+                    const matchedGroupIds = target.groupIds || [];
+                    floorData[curPageIdx].groups.forEach(group => {
+                        if (matchedGroupIds.includes(group.id)) {
+                            group.status = next; // 그룹 상태 변경
+                            // 2. 해당 그룹에 매칭된 LCU들 찾기
+                            if (group.lcuIds) {
+                                lcuList.forEach(lcu => {
+                                    if (group.lcuIds.includes(lcu.id)) lcu.status = next; // LCU 상태 변경
+                                });
+                            }
+                        }
+                    });
+                }
+                // [연쇄 동기화] 그룹별 제어 시 하위 LCU 일괄 제어
+                else if(type === 'group' && target.lcuIds) {
+                    lcuList.forEach(lcu => {
+                        if(target.lcuIds.includes(lcu.id)) lcu.status = next;
+                    });
+                }
+                
+                saveAll(); renderAdminTable(); renderLayers();
+            }
+        }
+
+        // --- 2. 매칭 시스템 (전체 터치) ---
         function openMatching(type, idx) {
             const container = document.getElementById('matching-container'); container.innerHTML = "";
             const target = (type === 'group' ? floorData[curPageIdx].groups[idx] : floorData[idx]);
             const sourceList = (type === 'group' ? lcuList : floorData[curPageIdx].groups);
             
-            // 초기 진입 시 현재 저장된 ID들 복사
-            if (!window.matchingInfo || window.matchingInfo.idx !== idx) {
-                tempMatchingIds = type === 'group' ? [...(target.lcuIds || [])] : [...(target.groupIds || [])];
-            }
+            tempMatchingIds = type === 'group' ? [...(target.lcuIds || [])] : [...(target.groupIds || [])];
 
             sourceList.forEach(item => {
                 const isSelected = tempMatchingIds.includes(item.id);
                 const box = document.createElement('div');
                 box.className = `match-box flex items-center gap-3 p-4 ${isSelected ? 'selected' : ''}`;
-                box.innerHTML = `<input type="checkbox" class="w-4 h-4 pointer-events-none" ${isSelected ? 'checked' : ''}> <span class="text-sm font-bold">${item.name}</span>`;
-                
-                // 네모 박스 전체 터치 이벤트
+                box.innerHTML = `<input type="checkbox" class="pointer-events-none" ${isSelected ? 'checked' : ''}> <span class="text-sm font-bold">${item.name}</span>`;
                 box.onclick = () => {
-                    if (tempMatchingIds.includes(item.id)) {
-                        tempMatchingIds = tempMatchingIds.filter(id => id !== item.id);
-                    } else {
-                        tempMatchingIds.push(item.id);
-                    }
-                    openMatching(type, idx); // UI 즉시 갱신
+                    if (tempMatchingIds.includes(item.id)) tempMatchingIds = tempMatchingIds.filter(id => id !== item.id);
+                    else tempMatchingIds.push(item.id);
+                    openMatching(type, idx);
                 };
                 container.appendChild(box);
             });
-
             window.matchingInfo = { type, idx };
             document.getElementById('modal-matching').classList.remove('hidden');
         }
@@ -131,17 +158,12 @@
             const { type, idx } = window.matchingInfo;
             if (type === 'group') floorData[curPageIdx].groups[idx].lcuIds = [...tempMatchingIds];
             else floorData[idx].groupIds = [...tempMatchingIds];
-            
-            saveAll();
-            renderAdminTable();
-            closeModal('modal-matching');
-            alert('매칭 정보가 성공적으로 저장되었습니다.');
+            saveAll(); renderAdminTable(); closeModal('modal-matching');
         }
 
-        // --- 2. [핵심 복구] 4꼭지점 리사이징 로직 ---
+        // --- 3. 도면 및 4꼭지점 리사이징 ---
         function initResize(e, idx, pos) {
-            e.stopPropagation();
-            let startX = e.clientX, startY = e.clientY;
+            e.stopPropagation(); let startX = e.clientX, startY = e.clientY;
             const target = floorData[curPageIdx].groups[idx];
             window.onmousemove = (ev) => {
                 const dx = ev.clientX - startX; const dy = ev.clientY - startY;
@@ -149,21 +171,11 @@
                 if(pos.includes('w')) { target.l += (dx/900)*100; target.w -= dx; }
                 if(pos.includes('s')) target.h += dy;
                 if(pos.includes('n')) { target.t += (dy/410)*100; target.h -= dy; }
-                startX = ev.clientX; startY = ev.clientY;
-                renderLayers();
+                startX = ev.clientX; startY = ev.clientY; renderLayers();
             };
             window.onmouseup = () => { window.onmousemove = null; saveAll(); };
         }
 
-        // --- 3. [복구] 층별 추가 및 명칭 변경 ---
-        function addNewFloor() {
-            const newFloor = { id: Date.now(), name: `신규 도면 ${floorData.length + 1}`, status: 'OFF', groups: [], groupIds: [] };
-            floorData.push(newFloor);
-            saveAll(); renderAdminTable();
-            alert('신규 층(도면)이 추가되었습니다.');
-        }
-
-        // --- 기타 로직 (기존 명세와 동일하게 유지) ---
         function renderAdminTable() {
             const head = document.getElementById('table-header-row'); const body = document.getElementById('admin-table-body');
             body.innerHTML = ''; const h = `<th>절감량(kW)</th><th>전력량(kWh)</th><th>순시전력(kW)</th>`;
@@ -197,19 +209,19 @@
         }
 
         // --- 공통 유틸리티 ---
-        function saveAll() { localStorage.setItem('rtu_floors_v23', JSON.stringify(floorData)); localStorage.setItem('rtu_lcu_v23', JSON.stringify(lcuList)); }
-        function closeModal(id) { document.getElementById(id).classList.add('hidden'); window.matchingInfo = null; }
-        function toggleStatus(type, idx, force) { let t=(type==='individual'?lcuList[idx]:(type==='group'?floorData[curPageIdx].groups[idx]:floorData[idx])); const n=force||(t.status==='ON'?'OFF':'ON'); if(force||confirm(`${t.name} ${n}?`)){ t.status=n; if(type==='group'&&t.lcuIds) lcuList.forEach(l=>{if(t.lcuIds.includes(l.id)) l.status=n;}); saveAll(); renderAdminTable(); renderLayers(); } }
+        function saveAll() { localStorage.setItem('rtu_floors_v24', JSON.stringify(floorData)); localStorage.setItem('rtu_lcu_v24', JSON.stringify(lcuList)); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
         function switchTab(t) { currentTab=t; document.querySelectorAll('nav button').forEach(b=>b.classList.remove('bg-blue-600')); document.getElementById('tab-'+t).classList.add('bg-blue-600'); renderAdminTable(); }
         function updatePage() { const f = floorData[curPageIdx]; document.getElementById('blueprint').style.backgroundImage = `url('rtu_ui${f.id===1?'':(f.id===2?'2':'3')}.jpg')`; renderLayers(); }
         function changePage(d) { curPageIdx=(curPageIdx+d+floorData.length)%floorData.length; updatePage(); }
         function enterEditMode() { isEditMode=true; document.getElementById('page-admin-main').classList.add('hidden'); document.getElementById('page-user').classList.remove('hidden'); document.getElementById('edit-controls').classList.remove('hidden'); updatePage(); }
         function saveEditAndExit() { isEditMode=false; selectedGroupIdx=null; document.getElementById('edit-controls').classList.add('hidden'); document.getElementById('page-user').classList.add('hidden'); document.getElementById('page-admin-main').classList.remove('hidden'); saveAll(); renderAdminTable(); }
-        function addGroupLayer() { const idx = floorData[curPageIdx].groups.length; floorData[curPageIdx].groups.push({id:Date.now(), t:40, l:40, w:180, h:120, name:"New Group", status:'OFF', lcuIds:[]}); selectedGroupIdx = idx; renderLayers(); openKeypad('group', idx); }
-        function deleteSelectedGroup() { if(selectedGroupIdx!==null){ floorData[curPageIdx].groups.splice(selectedGroupIdx,1); selectedGroupIdx=null; renderLayers(); } }
-        function initDrag(e, idx) { let sX=e.clientX, sY=e.clientY; const t=floorData[curPageIdx].groups[idx]; window.onmousemove=(ev)=>{ t.l+=((ev.clientX-sX)/900)*100; t.t+=((ev.clientY-sY)/410)*100; sX=ev.clientX; sY=ev.clientY; renderLayers(); }; window.onmouseup=()=>{ window.onmousemove=null; saveAll(); }; }
         function addNewLCU() { lcuList.push({id:Date.now(), name:"New LCU", save:0, total:0, now:0, status:'OFF'}); saveAll(); renderAdminTable(); }
+        function addNewFloor() { floorData.push({id:Date.now(), name:`Floor ${floorData.length+1}`, status:'OFF', groups:[], groupIds:[]}); saveAll(); renderAdminTable(); }
         function addNewGroupManual() { floorData[curPageIdx].groups.push({id:Date.now(), t:45, l:45, w:150, h:100, name:"New Group", status:'OFF', lcuIds:[]}); saveAll(); renderAdminTable(); }
+        function addGroupLayer() { const idx = floorData[curPageIdx].groups.length; floorData[curPageIdx].groups.push({id:Date.now(), t:40, l:40, w:180, h:120, name:"New Group", status:'OFF', lcuIds:[]}); selectedGroupIdx = idx; renderLayers(); openKeypad('group', idx); }
+        function deleteSelectedGroup() { if(selectedGroupIdx !== null) { floorData[curPageIdx].groups.splice(selectedGroupIdx, 1); selectedGroupIdx = null; renderLayers(); } }
+        function initDrag(e, idx) { let sX=e.clientX, sY=e.clientY; const t=floorData[curPageIdx].groups[idx]; window.onmousemove=(ev)=>{ t.l+=((ev.clientX-sX)/900)*100; t.t+=((ev.clientY-sY)/410)*100; sX=ev.clientX; sY=ev.clientY; renderLayers(); }; window.onmouseup=()=>{ window.onmousemove=null; saveAll(); }; }
         function openKeypad(t,i) { editingObj={type:t,idx:i}; document.getElementById('keypad-input').value=(t==='lcu'?lcuList[i].name:(t==='group'?floorData[curPageIdx].groups[i].name:floorData[i].name)); renderKeypad(); document.getElementById('modal-keypad').classList.remove('hidden'); }
         function renderKeypad() { const r=document.getElementById('keypad-rows'); r.innerHTML=""; const kSet=[["1","2","3","4","5","6","7","8","9","0"],["Q","W","E","R","T","Y","U","I","O","P"],["A","S","D","F","G","H","J","K","L"],["Z","X","C","V","B","N","M", "←"]]; kSet.forEach(row=>{ const d=document.createElement('div'); d.className="flex justify-center gap-1.5"; row.forEach(key=>{ const b=document.createElement('button'); b.className=`key-btn w-[65px] ${key==="←"?"w-[100px] bg-red-900/40 text-red-500":""}`; b.innerText=key; b.onclick=()=>{if(key==="←") document.getElementById('keypad-input').value=document.getElementById('keypad-input').value.slice(0,-1); else document.getElementById('keypad-input').value+=key;}; d.appendChild(b); }); r.appendChild(d); }); const s=document.createElement('div'); s.className="flex justify-center gap-1.5 mt-1.5"; s.innerHTML=`<button onclick="document.getElementById('keypad-input').value+=' '" class="key-btn w-[300px] bg-slate-800">SPACE</button>`; r.appendChild(s); }
         function closeKeypad(s) { if(s){ const v=document.getElementById('keypad-input').value; if(editingObj.type==='lcu') lcuList[editingObj.idx].name=v; else if(editingObj.type==='group') floorData[curPageIdx].groups[editingObj.idx].name=v; else floorData[editingObj.idx].name=v; saveAll(); renderAdminTable(); renderLayers(); } document.getElementById('modal-keypad').classList.add('hidden'); }
